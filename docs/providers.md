@@ -13,6 +13,7 @@ You can replace or extend that pipeline with any command-line AI that can receiv
 ```powershell
 ao providers
 ao run --goal "review this repo" --providers claude,codex
+ao run --project ims --goal "review this repo" --providers claude,codex
 ao run --goal "local fallback review" --providers local-reviewer --config .\artificial-orchestrator.config.json
 ```
 
@@ -60,3 +61,10 @@ The config shape is:
 ## Maintainer Notes
 
 Keep provider adapters small. If a provider has structured output, add a parser but keep the orchestration loop unchanged. Built-in providers should only handle CLI quirks, auth/limit parsing, and usage extraction.
+
+Providers receive both recent transcript text and durable state before every turn:
+
+- `handoff.md` carries concise provider-to-provider handoff notes.
+- `provider-state.json` carries latest per-provider status, limits, usage, and handoff summaries.
+
+Adapters should keep their public output concise and include a short handoff for the next provider. The orchestrator persists that handoff even when a provider blocks on limits or credentials.

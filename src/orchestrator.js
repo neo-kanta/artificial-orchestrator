@@ -1,4 +1,4 @@
-import { appendTurn, createSession } from "./logger.js";
+import { appendTurn, createSession, readProviderContext } from "./logger.js";
 import { callProvider } from "./providers.js";
 import { usageLine } from "./parsers.js";
 import { providerPrompt } from "./prompts.js";
@@ -6,20 +6,21 @@ import { workspaceSnapshot } from "./snapshot.js";
 import { color } from "./ansi.js";
 
 export async function runDuet(options) {
-  const session = await createSession(options.workspace, options.goal);
+  const session = await createSession(options.workspace, options.goal, { project: options.project });
   const history = [];
 
   console.log(color("bold", "Artificial Orchestrator"));
   console.log(`session: ${session.dir}`);
+  if (options.project) console.log(`project: ${options.project.name}`);
   console.log(`workspace: ${options.workspace}`);
   console.log(`mode: ${options.apply ? "apply" : "plan"}\n`);
   console.log(`pipeline: ${options.providers.map((provider) => provider.id).join(" -> ")}\n`);
 
   for (let round = 1; round <= options.rounds; round += 1) {
     const snapshot = await workspaceSnapshot(options.workspace);
-    const recent = compactHistory(history, options.historyChars);
 
     for (const provider of options.providers) {
+      const durableState = await readProviderContext(session, options.historyChars);
       await runProviderTurn({
         session,
         round,
@@ -33,6 +34,7 @@ export async function runDuet(options) {
               round,
               workspaceSnapshot: snapshot,
               history: compactHistory(history, options.historyChars),
+              durableState,
               apply: options.apply
             })
           ),
