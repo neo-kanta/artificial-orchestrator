@@ -142,13 +142,3 @@ For token scope guidance, see [GitHub Token Permissions](docs/github-token-permi
 --max-budget-usd <n>    Passed to Claude CLI when supported.
 --claude-tools          Allow Claude tools. Default is no-tools architect/reviewer.
 ```
-
-## Notes
-
-Your current Claude CLI may report a usage limit such as:
-
-```text
-You've hit your limit; resets 1:20pm (Asia/Bangkok)
-```
-
-Artificial Orchestrator treats that as a provider status, writes it into the session, and lets Codex continue if possible.
