@@ -1,5 +1,5 @@
 param(
-  [string]$Repo = "codex-claude-orchestrator"
+  [string]$Repo = "artificial-orchestrator"
 )
 
 $ErrorActionPreference = "Stop"

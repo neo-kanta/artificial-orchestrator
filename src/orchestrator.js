@@ -9,7 +9,7 @@ export async function runDuet(options) {
   const session = await createSession(options.workspace, options.goal);
   const history = [];
 
-  console.log(color("bold", "Architect Duet"));
+  console.log(color("bold", "Artificial Orchestrator"));
   console.log(`session: ${session.dir}`);
   console.log(`workspace: ${options.workspace}`);
   console.log(`mode: ${options.apply ? "apply" : "plan"}\n`);

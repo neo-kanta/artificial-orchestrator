@@ -1,6 +1,6 @@
-# Architect Duet
+# Artificial Orchestrator
 
-Architect Duet is a tiny CLI for watching Codex and Claude collaborate in a local terminal. Claude acts as the architect/reviewer by default, Codex acts as the builder/executor, and every public exchange is written to a transcript plus an NDJSON machine log.
+Artificial Orchestrator is a tiny CLI for watching Codex and Claude collaborate in a local terminal. Claude acts as the architect/reviewer by default, Codex acts as the builder/executor, and every public exchange is written to a transcript plus an NDJSON machine log.
 
 It does not expose hidden chain-of-thought. It shows the useful parts: decisions, tradeoffs, actions, token usage when a CLI reports it, and provider limits such as Claude reset windows.
 
@@ -17,11 +17,13 @@ Or run without linking:
 node .\bin\duet.js doctor
 ```
 
+After linking you can use either `ao`, `artificial-orchestrator`, or the backward-compatible `duet` alias.
+
 ## Check The Machine
 
 ```powershell
-duet doctor
-duet doctor --ping
+ao doctor
+ao doctor --ping
 ```
 
 `doctor` checks `codex`, `claude`, `git`, `gh`, and GitHub authentication. `--ping` spends a tiny provider call to verify both agent CLIs. If Claude is out of usage, the CLI records the reset time reported by Claude.
@@ -31,19 +33,19 @@ duet doctor --ping
 Plan-only mode:
 
 ```powershell
-duet run --workspace C:\Users\kanta\source\repos\ims-th-solution --goal "finish the market data feature cleanly" --rounds 2
+ao run --workspace C:\Users\kanta\source\repos\ims-th-solution --goal "finish the market data feature cleanly" --rounds 2
 ```
 
 Allow Codex to edit files:
 
 ```powershell
-duet run --workspace C:\Users\kanta\source\repos\ims-th-solution --goal "finish the market data feature cleanly" --rounds 3 --apply
+ao run --workspace C:\Users\kanta\source\repos\ims-th-solution --goal "finish the market data feature cleanly" --rounds 3 --apply
 ```
 
 Use Claude only as no-tools reviewer/architect, which is the default:
 
 ```powershell
-duet run --goal "review the architecture and tell Codex what to fix" --rounds 1
+ao run --goal "review the architecture and tell Codex what to fix" --rounds 1
 ```
 
 Session files are written under:
@@ -58,6 +60,15 @@ Important files:
 - `events.ndjson` - machine-readable turn log.
 - `status.json` - latest provider status, usage, limits, and round state.
 
+## Automation Prompts
+
+Reusable prompts live in [docs/prompts](docs/prompts):
+
+- [Codex automation prompt](docs/prompts/codex-automation.md)
+- [Claude routine prompt](docs/prompts/claude-routine.md)
+
+They are designed for continuous operation with checkpoints, budget guards, sleep/resume behavior, and local fallback. They do not attempt to bypass paid provider limits.
+
 ## Publish Private Repo
 
 GitHub CLI must be authenticated first:
@@ -69,13 +80,13 @@ gh auth login
 Then from this repo:
 
 ```powershell
-duet publish --repo codex-claude-orchestrator
+ao publish --repo artificial-orchestrator
 ```
 
 Equivalent helper:
 
 ```powershell
-.\scripts\publish-private.ps1 -Repo codex-claude-orchestrator
+.\scripts\publish-private.ps1 -Repo artificial-orchestrator
 ```
 
 ## Design
@@ -102,7 +113,7 @@ Equivalent helper:
 Your current Claude CLI may report a usage limit such as:
 
 ```text
-You've hit your limit · resets 1:20pm (Asia/Bangkok)
+You've hit your limit; resets 1:20pm (Asia/Bangkok)
 ```
 
-Architect Duet treats that as a provider status, writes it into the session, and lets Codex continue if possible.
+Artificial Orchestrator treats that as a provider status, writes it into the session, and lets Codex continue if possible.

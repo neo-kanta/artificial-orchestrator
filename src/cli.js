@@ -31,7 +31,7 @@ export async function main(argv) {
 
   if (command === "run") {
     const goal = String(args.goal ?? args.g ?? args._.slice(1).join(" ")).trim();
-    if (!goal) throw new Error("Missing goal. Example: duet run --goal \"finish the market data tests\"");
+    if (!goal) throw new Error("Missing goal. Example: ao run --goal \"finish the market data tests\"");
 
     await runDuet({
       goal,
@@ -76,13 +76,13 @@ export async function main(argv) {
 }
 
 function help() {
-  console.log(`Architect Duet
+  console.log(`Artificial Orchestrator
 
 Usage:
-  duet doctor [--ping] [--workspace <path>]
-  duet run --goal "<mission>" [--workspace <path>] [--rounds 2] [--apply]
-  duet tail [--workspace <path>]
-  duet publish --repo <private-repo-name>
+  ao doctor [--ping] [--workspace <path>]
+  ao run --goal "<mission>" [--workspace <path>] [--rounds 2] [--apply]
+  ao tail [--workspace <path>]
+  ao publish --repo <private-repo-name>
 
 Commands:
   doctor   Check local codex, claude, git, gh, and optional API pings.

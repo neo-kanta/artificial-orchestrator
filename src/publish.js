@@ -7,7 +7,7 @@ export async function publishPrivate(options) {
   });
 
   if (!auth.ok) {
-    throw new Error("GitHub CLI is not authenticated. Run `gh auth login`, then rerun `duet publish --repo <name>`.");
+    throw new Error("GitHub CLI is not authenticated. Run `gh auth login`, then rerun `ao publish --repo <name>`.");
   }
 
   const existingRemote = await runCli("git", ["remote", "get-url", "origin"], {
@@ -21,7 +21,7 @@ export async function publishPrivate(options) {
     return;
   }
 
-  const repo = options.repo || "codex-claude-orchestrator";
+  const repo = options.repo || "artificial-orchestrator";
   await mustRun(
     "gh",
     ["repo", "create", repo, "--private", "--source", ".", "--remote", "origin", "--push"],

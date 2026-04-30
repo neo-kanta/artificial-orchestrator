@@ -16,7 +16,7 @@ export async function createSession(root, goal) {
   };
 
   await writeJson(join(dir, "status.json"), state);
-  await appendFile(join(dir, "transcript.md"), `# Architect Duet Session\n\nGoal: ${goal}\n\n`);
+  await appendFile(join(dir, "transcript.md"), `# Artificial Orchestrator Session\n\nGoal: ${goal}\n\n`);
   await writeFile(join(root, ".duet", "latest"), dir, "utf8");
 
   return { dir, state };

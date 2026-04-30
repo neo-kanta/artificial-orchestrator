@@ -1,9 +1,11 @@
 {
-  "name": "architect-duet",
+  "name": "artificial-orchestrator",
   "version": "0.1.0",
   "description": "A small CLI that lets Codex and Claude collaborate with visible transcripts, status checks, and token/limit tracking.",
   "type": "module",
   "bin": {
+    "artificial-orchestrator": "./bin/duet.js",
+    "ao": "./bin/duet.js",
     "duet": "./bin/duet.js"
   },
   "scripts": {
