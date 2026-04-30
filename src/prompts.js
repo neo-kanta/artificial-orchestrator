@@ -49,3 +49,45 @@ export function codexBuilderPrompt({ goal, round, workspaceSnapshot, history, ap
     "5. DUET_STATUS: continue or done"
   ].join("\n");
 }
+
+export function providerPrompt({ provider, goal, round, workspaceSnapshot, history, apply }) {
+  if (provider.kind === "claude") {
+    return claudeArchitectPrompt({ goal, round, workspaceSnapshot, history });
+  }
+
+  if (provider.kind === "codex") {
+    return codexBuilderPrompt({ goal, round, workspaceSnapshot, history, apply });
+  }
+
+  return genericProviderPrompt({ provider, goal, round, workspaceSnapshot, history, apply });
+}
+
+function genericProviderPrompt({ provider, goal, round, workspaceSnapshot, history, apply }) {
+  const role = provider.role ?? "reviewer";
+
+  return [
+    `You are ${provider.label ?? provider.id} inside Artificial Orchestrator.`,
+    `Role: ${role}.`,
+    "Collaborate with the other providers through public, concise outputs.",
+    "Do not reveal private hidden chain-of-thought. Show decisions, tradeoffs, evidence, and next actions.",
+    apply
+      ? "If your adapter has tools, keep changes scoped and do not revert unrelated user work."
+      : "Do not edit files in this run. Provide plans, review notes, and verification guidance.",
+    "",
+    `Round: ${round}`,
+    `Goal: ${goal}`,
+    "",
+    "Workspace snapshot:",
+    workspaceSnapshot,
+    "",
+    "Recent orchestrator transcript:",
+    history || "(none yet)",
+    "",
+    "Return this structure:",
+    "1. Role perspective",
+    "2. Recommended next action",
+    "3. Risks or constraints",
+    "4. Verification",
+    "5. ORCHESTRATOR_STATUS: continue or done"
+  ].join("\n");
+}

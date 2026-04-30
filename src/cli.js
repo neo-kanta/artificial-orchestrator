@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "./args.js";
+import { BUILT_IN_PROVIDERS, loadConfig, resolveProviders } from "./config.js";
 import { doctor } from "./doctor.js";
 import { runDuet } from "./orchestrator.js";
 import { publishPrivate } from "./publish.js";
@@ -17,6 +18,7 @@ export async function main(argv) {
   }
 
   const workspace = resolve(String(args.workspace ?? args.w ?? process.cwd()));
+  const config = await loadConfig({ workspace, configPath: args.config });
 
   if (command === "doctor") {
     const ok = await doctor({
@@ -33,29 +35,41 @@ export async function main(argv) {
     const goal = String(args.goal ?? args.g ?? args._.slice(1).join(" ")).trim();
     if (!goal) throw new Error("Missing goal. Example: ao run --goal \"finish the market data tests\"");
 
+    const timeoutMs = Number(args.timeoutMs ?? 15 * 60 * 1000);
+    const providers = resolveProviders({
+      config,
+      providerList: args.providers,
+      codexOnly: Boolean(args.codexOnly),
+      claudeOnly: Boolean(args.claudeOnly),
+      runtime: {
+        workspace,
+        timeoutMs,
+        apply: Boolean(args.apply),
+        unsafe: Boolean(args.unsafe),
+        codexModel: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
+        claudeModel: args.claudeModel ? String(args.claudeModel) : undefined,
+        maxBudgetUsd: args.maxBudgetUsd ?? undefined,
+        claudeTools: Boolean(args.claudeTools)
+      }
+    });
+
     await runDuet({
       goal,
       workspace,
       rounds: Number(args.rounds ?? args.r ?? 2),
       apply: Boolean(args.apply),
       historyChars: Number(args.historyChars ?? 12000),
-      codexOnly: Boolean(args.codexOnly),
-      claudeOnly: Boolean(args.claudeOnly),
-      codex: {
-        workspace,
-        model: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
-        apply: Boolean(args.apply),
-        unsafe: Boolean(args.unsafe),
-        timeoutMs: Number(args.timeoutMs ?? 15 * 60 * 1000)
-      },
-      claude: {
-        workspace,
-        model: args.claudeModel ? String(args.claudeModel) : undefined,
-        maxBudgetUsd: args.maxBudgetUsd ?? undefined,
-        allowTools: Boolean(args.claudeTools),
-        timeoutMs: Number(args.timeoutMs ?? 15 * 60 * 1000)
-      }
+      providers
     });
+    return;
+  }
+
+  if (command === "providers") {
+    const providers = { ...BUILT_IN_PROVIDERS, ...(config.providers ?? {}) };
+    if (config.path) console.log(`config: ${config.path}`);
+    for (const provider of Object.values(providers)) {
+      console.log(`${provider.id}\t${provider.kind ?? "command"}\t${provider.role ?? "reviewer"}\t${provider.label ?? provider.id}`);
+    }
     return;
   }
 
@@ -80,13 +94,15 @@ function help() {
 
 Usage:
   ao doctor [--ping] [--workspace <path>]
-  ao run --goal "<mission>" [--workspace <path>] [--rounds 2] [--apply]
+  ao run --goal "<mission>" [--workspace <path>] [--providers claude,codex] [--rounds 2] [--apply]
+  ao providers [--config <file>]
   ao tail [--workspace <path>]
   ao publish --repo <private-repo-name>
 
 Commands:
   doctor   Check local codex, claude, git, gh, and optional API pings.
   run      Let Claude review/architect and Codex build/execute in rounds.
+  providers List built-in and configured AI providers.
   tail     Print the latest transcript for a workspace.
   publish  Create/push a private GitHub repo using gh auth.
 
@@ -95,6 +111,8 @@ Key options:
   --unsafe                Let Codex bypass approvals and sandbox. Use only in trusted worktrees.
   --codex-model <model>   Default: ${DEFAULT_CODEX_MODEL}
   --claude-model <model>  Optional Claude model alias/name.
+  --providers <ids>       Comma-separated provider pipeline. Default: claude,codex.
+  --config <file>         JSON config with custom command providers.
   --max-budget-usd <n>    Passed to Claude CLI when supported.
   --claude-tools          Allow Claude tools. Default keeps Claude as no-tools architect/reviewer.
 

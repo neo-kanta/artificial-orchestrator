@@ -1,7 +1,7 @@
 import { appendTurn, createSession } from "./logger.js";
-import { callClaude, callCodex } from "./providers.js";
+import { callProvider } from "./providers.js";
 import { usageLine } from "./parsers.js";
-import { claudeArchitectPrompt, codexBuilderPrompt } from "./prompts.js";
+import { providerPrompt } from "./prompts.js";
 import { workspaceSnapshot } from "./snapshot.js";
 import { color } from "./ansi.js";
 
@@ -13,52 +13,35 @@ export async function runDuet(options) {
   console.log(`session: ${session.dir}`);
   console.log(`workspace: ${options.workspace}`);
   console.log(`mode: ${options.apply ? "apply" : "plan"}\n`);
+  console.log(`pipeline: ${options.providers.map((provider) => provider.id).join(" -> ")}\n`);
 
   for (let round = 1; round <= options.rounds; round += 1) {
     const snapshot = await workspaceSnapshot(options.workspace);
     const recent = compactHistory(history, options.historyChars);
 
-    if (!options.codexOnly) {
+    for (const provider of options.providers) {
       await runProviderTurn({
         session,
         round,
-        provider: "claude",
+        provider,
         fn: () =>
-          callClaude(
-            claudeArchitectPrompt({
-              goal: options.goal,
-              round,
-              workspaceSnapshot: snapshot,
-              history: recent
-            }),
-            options.claude
-          ),
-        history
-      });
-    }
-
-    if (!options.claudeOnly) {
-      await runProviderTurn({
-        session,
-        round,
-        provider: "codex",
-        fn: () =>
-          callCodex(
-            codexBuilderPrompt({
+          callProvider(
+            provider,
+            providerPrompt({
+              provider,
               goal: options.goal,
               round,
               workspaceSnapshot: snapshot,
               history: compactHistory(history, options.historyChars),
               apply: options.apply
-            }),
-            options.codex
+            })
           ),
         history
       });
     }
 
-    if (history.some((entry) => entry.round === round && /DUET_STATUS:\s*done/i.test(entry.text))) {
-      console.log(color("green", "\nDUET_STATUS: done"));
+    if (history.some((entry) => entry.round === round && /(DUET_STATUS|ORCHESTRATOR_STATUS):\s*done/i.test(entry.text))) {
+      console.log(color("green", "\nORCHESTRATOR_STATUS: done"));
       break;
     }
   }
@@ -69,24 +52,24 @@ export async function runDuet(options) {
 }
 
 async function runProviderTurn({ session, round, provider, fn, history }) {
-  process.stdout.write(color("cyan", `[round ${round}] ${provider} thinking... `));
+  process.stdout.write(color("cyan", `[round ${round}] ${provider.id} thinking... `));
   const result = await fn();
   const line = usageLine(result.usage);
   const status = result.ok ? color("green", "ok") : color("yellow", "blocked");
   console.log(`${status} (${Math.round(result.durationMs / 1000)}s, ${line})`);
 
   if (result.limit) {
-    console.log(color("yellow", `${provider} limit reset: ${result.limit.reset}`));
+    console.log(color("yellow", `${provider.id} limit reset: ${result.limit.reset}`));
   }
 
   const text = result.text || "(no output)";
-  console.log(color(provider === "claude" ? "magenta" : "blue", `\n${provider.toUpperCase()}`));
+  console.log(color(provider.color ?? "cyan", `\n${provider.label ?? provider.id}`.toUpperCase()));
   console.log(text);
   console.log("");
 
   const turn = {
     round,
-    provider,
+    provider: provider.id,
     ok: result.ok,
     text,
     usage: result.usage ?? null,
@@ -99,7 +82,7 @@ async function runProviderTurn({ session, round, provider, fn, history }) {
   };
 
   await appendTurn(session, turn);
-  history.push({ round, provider, text });
+  history.push({ round, provider: provider.id, text });
 }
 
 function compactHistory(history, maxChars) {

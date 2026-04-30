@@ -1,0 +1,35 @@
+{
+  "pipeline": ["claude", "codex"],
+  "providers": {
+    "local-reviewer": {
+      "label": "Local Reviewer",
+      "kind": "command",
+      "role": "reviewer",
+      "command": "node",
+      "args": ["./examples/local-reviewer.js"],
+      "promptMode": "stdin",
+      "parser": "text",
+      "timeoutMs": 120000
+    },
+    "gemini": {
+      "label": "Gemini CLI",
+      "kind": "command",
+      "role": "researcher",
+      "command": "gemini",
+      "args": ["--prompt", "{{prompt}}"],
+      "promptMode": "arg-template",
+      "parser": "text",
+      "timeoutMs": 300000
+    },
+    "ollama": {
+      "label": "Ollama Local",
+      "kind": "command",
+      "role": "local-fallback",
+      "command": "ollama",
+      "args": ["run", "llama3.1"],
+      "promptMode": "stdin",
+      "parser": "text",
+      "timeoutMs": 300000
+    }
+  }
+}

@@ -60,6 +60,18 @@ Important files:
 - `events.ndjson` - machine-readable turn log.
 - `status.json` - latest provider status, usage, limits, and round state.
 
+## Flexible Providers
+
+Artificial Orchestrator is not limited to this project or only two AIs. Use a provider config to add command-line AIs such as Gemini CLI, Ollama, LM Studio wrappers, or your own scripts.
+
+```powershell
+ao providers
+ao run --goal "review the repo" --providers claude,codex
+ao run --goal "local fallback review" --providers ollama --config .\artificial-orchestrator.config.json
+```
+
+See [Provider Configuration](docs/providers.md) and [artificial-orchestrator.config.example.json](artificial-orchestrator.config.example.json).
+
 ## Automation Prompts
 
 Reusable prompts live in [docs/prompts](docs/prompts):
@@ -88,6 +100,8 @@ Equivalent helper:
 ```powershell
 .\scripts\publish-private.ps1 -Repo artificial-orchestrator
 ```
+
+For token scope guidance, see [GitHub Token Permissions](docs/github-token-permissions.md).
 
 ## Design
 

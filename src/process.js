@@ -61,7 +61,7 @@ export function runProcess(command, args = [], options = {}) {
       return;
     }
 
-    if (child.stdin) child.stdin.end();
+    if (child.stdin) child.stdin.end(options.input ?? "");
 
     const timer = setTimeout(() => {
       timedOut = true;
