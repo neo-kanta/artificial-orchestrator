@@ -40,7 +40,8 @@ test("org CLI lists and shows built-in organizations", async () => {
 
   const show = await captureStdout(() => main(["org", "show", "software-team"]));
   assert.match(show, /manager\s+openai/);
-  assert.match(show, /builder\s+codex/);
+  assert.match(show, /builder-claude\s+claude/);
+  assert.match(show, /builder-codex\s+codex/);
 });
 
 test("run --org validates org mode before provider calls", async (t) => {

@@ -13,7 +13,8 @@ ao org show software-team
 
 - `manager` - breaks down the goal and tracks whether the run should continue, finish, or block.
 - `architect` - identifies architecture direction, interfaces, risks, and constraints.
-- `builder` - implements or proposes scoped code changes.
+- `builder-claude` - proposes implementation strategy, edge cases, and build risks.
+- `builder-codex` - implements or proposes scoped code changes using Claude's builder guidance.
 - `tester` - defines and reviews verification commands and test gaps.
 - `reviewer` - checks behavior changes, regressions, and maintainability.
 - `security` - checks credentials, destructive actions, and unsafe permissions.
@@ -24,7 +25,8 @@ Default role mapping:
 ```text
 manager   -> openai
 architect -> openai
-builder   -> codex
+builder-claude -> claude
+builder-codex  -> codex
 tester    -> openai
 reviewer  -> claude
 security  -> openai

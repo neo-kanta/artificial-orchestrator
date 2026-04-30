@@ -5,7 +5,7 @@ export const BUILT_IN_ORGS = {
     id: "software-team",
     label: "Software Team",
     description: "A small AI engineering organization for planning, building, checking, and documenting software work.",
-    pipeline: ["manager", "architect", "builder", "tester", "reviewer", "security", "docs"],
+    pipeline: ["manager", "architect", "builder-claude", "builder-codex", "tester", "reviewer", "security", "docs"],
     roles: {
       manager: {
         provider: "openai",
@@ -15,9 +15,13 @@ export const BUILT_IN_ORGS = {
         provider: "openai",
         responsibility: "Identify architecture direction, interfaces, risks, and implementation constraints."
       },
-      builder: {
+      "builder-claude": {
+        provider: "claude",
+        responsibility: "Act as a high-capability implementation strategist: propose concrete code changes, edge cases, and build risks before execution."
+      },
+      "builder-codex": {
         provider: "codex",
-        responsibility: "Implement or propose scoped code changes with senior engineering judgment."
+        responsibility: "Implement or propose scoped code changes with senior engineering judgment, using Claude's builder guidance as peer input."
       },
       tester: {
         provider: "openai",

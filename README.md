@@ -121,7 +121,7 @@ ao run --providers openai,codex --goal "plan the next release"
 
 ## AI Organizations
 
-Organization mode runs named roles over the same durable session state. The built-in `software-team` preset includes manager, architect, builder, tester, reviewer, security, and docs roles.
+Organization mode runs named roles over the same durable session state. The built-in `software-team` preset includes manager, architect, Claude builder, Codex builder, tester, reviewer, security, and docs roles.
 
 ```powershell
 ao org list

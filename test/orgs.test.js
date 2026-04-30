@@ -22,7 +22,7 @@ test("resolves software team roles to hydrated providers", () => {
     }
   });
 
-  assert.deepEqual(org.pipeline, ["manager", "architect", "builder", "tester", "reviewer", "security", "docs"]);
+  assert.deepEqual(org.pipeline, ["manager", "architect", "builder-claude", "builder-codex", "tester", "reviewer", "security", "docs"]);
 
   const manager = org.roles.find((role) => role.id === "manager");
   assert.equal(manager.kind, "openai");
@@ -30,10 +30,14 @@ test("resolves software team roles to hydrated providers", () => {
   assert.equal(manager.model, "gpt-openai-test");
   assert.equal(manager.reasoning, "high");
 
-  const builder = org.roles.find((role) => role.id === "builder");
-  assert.equal(builder.kind, "codex");
-  assert.equal(builder.providerId, "codex");
-  assert.equal(builder.model, "gpt-codex-test");
+  const claudeBuilder = org.roles.find((role) => role.id === "builder-claude");
+  assert.equal(claudeBuilder.kind, "claude");
+  assert.equal(claudeBuilder.providerId, "claude");
+
+  const codexBuilder = org.roles.find((role) => role.id === "builder-codex");
+  assert.equal(codexBuilder.kind, "codex");
+  assert.equal(codexBuilder.providerId, "codex");
+  assert.equal(codexBuilder.model, "gpt-codex-test");
 });
 
 test("resolves configured orgs and providers", () => {
