@@ -2,6 +2,16 @@ import { access, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export const BUILT_IN_PROVIDERS = {
+  openai: {
+    id: "openai",
+    label: "OpenAI",
+    kind: "openai",
+    role: "generalist",
+    model: "gpt-5.5",
+    reasoning: "medium",
+    responseFormat: "json",
+    color: "green"
+  },
   claude: {
     id: "claude",
     label: "Claude",
@@ -20,22 +30,20 @@ export const BUILT_IN_PROVIDERS = {
 
 export async function loadConfig({ workspace, configPath }) {
   const path = await findConfig(workspace, configPath);
-  if (!path) return { path: null, pipeline: null, providers: {} };
+  if (!path) return { path: null, pipeline: null, providers: {}, orgs: {} };
 
   const raw = await readFile(path, "utf8");
   const parsed = JSON.parse(raw);
   return {
     path,
     pipeline: Array.isArray(parsed.pipeline) ? parsed.pipeline : null,
-    providers: normalizeProviders(parsed.providers)
+    providers: normalizeProviders(parsed.providers),
+    orgs: normalizeOrgs(parsed.orgs)
   };
 }
 
 export function resolveProviders({ config, providerList, codexOnly, claudeOnly, runtime }) {
-  const registry = {
-    ...BUILT_IN_PROVIDERS,
-    ...(config?.providers ?? {})
-  };
+  const registry = providerRegistry(config);
 
   let ids = providerList ? splitList(providerList) : config?.pipeline;
   if (!ids || ids.length === 0) ids = ["claude", "codex"];
@@ -48,6 +56,13 @@ export function resolveProviders({ config, providerList, codexOnly, claudeOnly, 
 
     return hydrateProvider(spec, runtime);
   });
+}
+
+export function providerRegistry(config) {
+  return {
+    ...BUILT_IN_PROVIDERS,
+    ...(config?.providers ?? {})
+  };
 }
 
 export function splitList(value) {
@@ -69,7 +84,19 @@ function normalizeProviders(providers) {
   );
 }
 
-function hydrateProvider(spec, runtime) {
+function normalizeOrgs(orgs) {
+  if (!orgs) return {};
+
+  if (Array.isArray(orgs)) {
+    return Object.fromEntries(orgs.map((org) => [org.id, org]));
+  }
+
+  return Object.fromEntries(
+    Object.entries(orgs).map(([id, org]) => [id, { id, ...org }])
+  );
+}
+
+export function hydrateProvider(spec, runtime) {
   const provider = {
     ...spec,
     workspace: runtime.workspace,
@@ -86,6 +113,13 @@ function hydrateProvider(spec, runtime) {
     provider.model = runtime.claudeModel;
     provider.maxBudgetUsd = runtime.maxBudgetUsd;
     provider.allowTools = runtime.claudeTools;
+  }
+
+  if (provider.kind === "openai") {
+    provider.model = runtime.openaiModel ?? spec.model ?? "gpt-5.5";
+    provider.reasoning = runtime.openaiReasoning ?? spec.reasoning ?? "medium";
+    provider.maxOutputTokens = Number(spec.maxOutputTokens ?? runtime.openaiMaxOutputTokens ?? 4096);
+    provider.responseFormat = spec.responseFormat ?? "json";
   }
 
   return provider;

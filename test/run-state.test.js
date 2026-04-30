@@ -44,3 +44,38 @@ test("creates durable session state and appends provider handoffs", async (t) =>
   assert.equal(status.project.name, "demo");
   assert.equal(status.rounds[0].provider, "codex");
 });
+
+test("creates and updates durable org state for role turns", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao org-state-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const session = await createSession(root, "coordinate org", {
+    project: { name: "demo", path: root, source: "active" },
+    org: { id: "software-team", label: "Software Team", pipeline: ["manager"] }
+  });
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "manager",
+    providerId: "openai",
+    providerKind: "openai",
+    role: "manager",
+    orgStatus: "done",
+    blockers: [],
+    ok: true,
+    text: "Summary\n\nStatus: done",
+    usage: null,
+    usageLine: "usage: unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 50
+  });
+
+  const orgState = JSON.parse(await readFile(join(session.dir, "org-state.json"), "utf8"));
+  assert.equal(orgState.org.id, "software-team");
+  assert.equal(orgState.phase, "done");
+  assert.equal(orgState.roles.manager.status, "done");
+  assert.equal(orgState.finalDecision.role, "manager");
+});

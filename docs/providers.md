@@ -7,12 +7,15 @@ claude -> codex
 ```
 
 You can replace or extend that pipeline with any command-line AI that can receive a prompt and print a response.
+OpenAI API is also available as a built-in direct provider.
 
 ## Quick Commands
 
 ```powershell
 ao providers
+ao providers doctor openai
 ao run --goal "review this repo" --providers claude,codex
+ao run --goal "plan this repo" --providers openai,codex
 ao run --project ims --goal "review this repo" --providers claude,codex
 ao run --goal "local fallback review" --providers local-reviewer --config .\artificial-orchestrator.config.json
 ```
@@ -40,6 +43,15 @@ The config shape is:
       "promptMode": "arg-template",
       "parser": "text",
       "timeoutMs": 300000
+    },
+    "openai-planner": {
+      "label": "OpenAI Planner",
+      "kind": "openai",
+      "role": "planner",
+      "model": "gpt-5.5",
+      "reasoning": "medium",
+      "responseFormat": "json",
+      "maxOutputTokens": 4096
     }
   }
 }
@@ -50,6 +62,7 @@ The config shape is:
 - `id`: implied by the object key.
 - `label`: human-friendly display name.
 - `kind`: `command` for custom providers. Built-ins use `claude` and `codex`.
+- `kind`: `openai` for direct OpenAI Responses API calls.
 - `role`: appears in the prompt, for example `architect`, `builder`, `reviewer`, `researcher`, or `local-fallback`.
 - `command`: executable to run.
 - `args`: command arguments. Use `{{prompt}}` to inject the generated prompt.
@@ -57,6 +70,15 @@ The config shape is:
 - `parser`: `text` or `json`.
 - `env`: optional environment variables. Template values are supported.
 - `timeoutMs`: per-provider timeout.
+
+## OpenAI Fields
+
+- `model`: OpenAI model id. Default: `gpt-5.5`.
+- `reasoning`: optional effort value such as `low`, `medium`, `high`, or `xhigh`.
+- `responseFormat`: `json` for structured role output, or `text`.
+- `maxOutputTokens`: passed to the Responses API as `max_output_tokens`.
+
+OpenAI credentials are read from `OPENAI_API_KEY`. Do not put secrets in provider config.
 
 ## Maintainer Notes
 

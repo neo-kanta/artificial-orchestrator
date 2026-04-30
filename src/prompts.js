@@ -67,6 +67,10 @@ export function codexBuilderPrompt({ goal, round, workspaceSnapshot, history, du
 }
 
 export function providerPrompt({ provider, goal, round, workspaceSnapshot, history, durableState, apply }) {
+  if (provider.orgRole) {
+    return orgRolePrompt({ provider, goal, round, workspaceSnapshot, history, durableState, apply });
+  }
+
   if (provider.kind === "claude") {
     return claudeArchitectPrompt({ goal, round, workspaceSnapshot, history, durableState });
   }
@@ -76,6 +80,48 @@ export function providerPrompt({ provider, goal, round, workspaceSnapshot, histo
   }
 
   return genericProviderPrompt({ provider, goal, round, workspaceSnapshot, history, durableState, apply });
+}
+
+export function orgRolePrompt({ provider, goal, round, workspaceSnapshot, history, durableState, apply }) {
+  return [
+    `You are the ${provider.orgRole} role in Artificial Orchestrator's ${provider.orgId} AI organization.`,
+    `Provider backing this role: ${provider.providerId ?? provider.kind}.`,
+    `Responsibility: ${provider.responsibility}`,
+    "Coordinate like a disciplined engineering organization: concise handoffs, explicit blockers, and no hidden chain-of-thought.",
+    apply
+      ? "If your backing provider has tools, keep changes scoped and do not revert unrelated user work."
+      : "Do not edit files in this run. Provide plans, review notes, and verification guidance.",
+    "",
+    `Round: ${round}`,
+    `Goal: ${goal}`,
+    "",
+    "Workspace snapshot:",
+    workspaceSnapshot,
+    "",
+    "Recent transcript:",
+    history || "(none yet)",
+    "",
+    "Durable provider state (provider-state.json):",
+    durableState?.providerState || "(none yet)",
+    "",
+    "Durable organization state (org-state.json):",
+    durableState?.orgState || "(none yet)",
+    "",
+    "Latest durable handoff (handoff.md):",
+    durableState?.handoff || "(none yet)",
+    "",
+    "Return concise public output only.",
+    "If your provider supports structured JSON, return:",
+    "{",
+    "  \"summary\": \"what this role concluded or did\",",
+    "  \"handoff\": \"what the next role needs to know\",",
+    "  \"status\": \"continue | done | blocked\",",
+    "  \"blockers\": [],",
+    "  \"filesSuggested\": [],",
+    "  \"testsSuggested\": []",
+    "}",
+    "If your provider cannot return JSON, include `Status: continue`, `Status: done`, or `Status: blocked` in the text."
+  ].join("\n");
 }
 
 function genericProviderPrompt({ provider, goal, round, workspaceSnapshot, history, durableState, apply }) {

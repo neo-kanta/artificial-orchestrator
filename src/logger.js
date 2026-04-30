@@ -11,6 +11,7 @@ export async function createSession(root, goal, metadata = {}) {
     id: safe,
     goal,
     project: metadata.project ?? null,
+    org: metadata.org ? { id: metadata.org.id, label: metadata.org.label ?? metadata.org.id } : null,
     startedAt: now,
     updatedAt: now,
     providers: {},
@@ -27,8 +28,28 @@ export async function createSession(root, goal, metadata = {}) {
     handoffs: []
   };
 
+  const orgState = metadata.org
+    ? {
+        id: safe,
+        goal,
+        org: {
+          id: metadata.org.id,
+          label: metadata.org.label ?? metadata.org.id,
+          pipeline: metadata.org.pipeline ?? []
+        },
+        project: metadata.project ?? null,
+        startedAt: now,
+        updatedAt: now,
+        phase: "running",
+        roles: {},
+        blockers: [],
+        finalDecision: null
+      }
+    : null;
+
   await writeJson(join(dir, "status.json"), state);
   await writeJson(join(dir, "provider-state.json"), providerState);
+  if (orgState) await writeJson(join(dir, "org-state.json"), orgState);
   await appendFile(
     join(dir, "transcript.md"),
     `# Artificial Orchestrator Session\n\nGoal: ${goal}\n\n${formatProject(metadata.project)}\n`
@@ -40,7 +61,7 @@ export async function createSession(root, goal, metadata = {}) {
   );
   await writeFile(join(root, ".duet", "latest"), dir, "utf8");
 
-  return { dir, state, providerState };
+  return { dir, state, providerState, orgState };
 }
 
 export async function appendTurn(session, turn) {
@@ -102,6 +123,41 @@ export async function appendTurn(session, turn) {
   });
 
   await writeJson(join(session.dir, "provider-state.json"), session.providerState);
+
+  if (session.orgState && turn.role) {
+    session.orgState.updatedAt = event.at;
+    session.orgState.roles[turn.role] = {
+      provider: turn.provider,
+      ok: turn.ok,
+      status: turn.orgStatus ?? (turn.ok ? "continue" : "blocked"),
+      lastRound: turn.round,
+      lastAt: event.at,
+      summary: compactText(turn.text, 800),
+      blockers: turn.blockers ?? []
+    };
+
+    if (turn.orgStatus === "blocked") {
+      session.orgState.phase = "blocked";
+      session.orgState.blockers.push({
+        role: turn.role,
+        provider: turn.provider,
+        at: event.at,
+        blockers: turn.blockers ?? [compactText(turn.text, 400)]
+      });
+    }
+
+    if (turn.orgStatus === "done") {
+      session.orgState.phase = "done";
+      session.orgState.finalDecision = {
+        role: turn.role,
+        provider: turn.provider,
+        at: event.at,
+        summary: compactText(turn.text, 800)
+      };
+    }
+
+    await writeJson(join(session.dir, "org-state.json"), session.orgState);
+  }
 }
 
 export async function readLatest(root) {
@@ -124,6 +180,17 @@ export async function readProviderContext(session, maxChars = 8000) {
     handoff: compactText(handoff.trim(), maxChars),
     providerState: compactText(providerState.trim(), maxChars)
   };
+}
+
+export async function readOrgContext(session, maxChars = 8000) {
+  if (!session.orgState) return null;
+
+  try {
+    const orgState = await readFile(join(session.dir, "org-state.json"), "utf8");
+    return compactText(orgState.trim(), maxChars);
+  } catch {
+    return null;
+  }
 }
 
 function formatProject(project) {

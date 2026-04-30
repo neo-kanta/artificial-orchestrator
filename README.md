@@ -93,12 +93,62 @@ ao run --goal "local fallback review" --providers ollama --config .\artificial-o
 
 See [Provider Configuration](docs/providers.md) and [artificial-orchestrator.config.example.json](artificial-orchestrator.config.example.json).
 
+## OpenAI Provider
+
+Artificial Orchestrator can call OpenAI models directly through the Responses API. Set your API key in the environment:
+
+```powershell
+setx OPENAI_API_KEY "sk-..."
+```
+
+Check readiness without spending a model call:
+
+```powershell
+ao providers doctor openai
+```
+
+Optional ping:
+
+```powershell
+ao providers doctor openai --ping
+```
+
+Use OpenAI in a flat provider pipeline:
+
+```powershell
+ao run --providers openai,codex --goal "plan the next release"
+```
+
+## AI Organizations
+
+Organization mode runs named roles over the same durable session state. The built-in `software-team` preset includes manager, architect, builder, tester, reviewer, security, and docs roles.
+
+```powershell
+ao org list
+ao org show software-team
+ao org run software-team --project ims --goal "finish the market data feature cleanly"
+```
+
+Equivalent run syntax:
+
+```powershell
+ao run --org software-team --goal "review, implement, test, and document this safely"
+```
+
+Org runs add:
+
+- `org-state.json` - role statuses, phase, blockers, and final decision.
+- Role-aware entries in `provider-state.json`, `handoff.md`, and `transcript.md`.
+
+See [AI Organizations](docs/orgs.md).
+
 ## Automation Prompts
 
 Reusable prompts live in [docs/prompts](docs/prompts):
 
 - [Codex automation prompt](docs/prompts/codex-automation.md)
 - [Claude routine prompt](docs/prompts/claude-routine.md)
+- [AI organization handoff](docs/prompts/ai-organization-handoff.md)
 
 They are designed for continuous operation with checkpoints, budget guards, sleep/resume behavior, and local fallback. They do not attempt to bypass paid provider limits.
 
