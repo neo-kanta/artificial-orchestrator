@@ -19,6 +19,23 @@ node .\bin\duet.js doctor
 
 After linking you can use either `ao`, `artificial-orchestrator`, or the backward-compatible `duet` alias.
 
+## Projects
+
+Register the workspaces you want Artificial Orchestrator to remember:
+
+```powershell
+ao project add ims --path C:\Users\kanta\source\repos\ims-th-solution --use
+ao project list
+ao project current
+ao project use ims
+```
+
+The first project you add becomes active automatically. After that, `ao run` uses the active project when no `--workspace` or `--project` is provided. You can also select a project for one run:
+
+```powershell
+ao run --project ims --goal "finish the market data feature cleanly"
+```
+
 ## Check The Machine
 
 ```powershell
@@ -59,6 +76,10 @@ Important files:
 - `transcript.md` - human-readable conversation and status.
 - `events.ndjson` - machine-readable turn log.
 - `status.json` - latest provider status, usage, limits, and round state.
+- `handoff.md` - durable provider-to-provider handoff notes.
+- `provider-state.json` - latest per-provider state and handoff summaries.
+
+Every run prints the selected project name and workspace path before providers start.
 
 ## Flexible Providers
 
