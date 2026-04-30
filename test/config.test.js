@@ -36,6 +36,55 @@ test("resolves built-in and configured providers", () => {
   assert.equal(providers[1].model, "gpt-test");
 });
 
+test("resolves built-in OpenAI provider defaults and runtime overrides", () => {
+  const [provider] = resolveProviders({
+    config: {},
+    providerList: "openai",
+    runtime: {
+      workspace: "C:/repo",
+      timeoutMs: 1000,
+      openaiModel: "gpt-openai-test",
+      openaiReasoning: "high",
+      openaiMaxOutputTokens: 512
+    }
+  });
+
+  assert.equal(provider.kind, "openai");
+  assert.equal(provider.model, "gpt-openai-test");
+  assert.equal(provider.reasoning, "high");
+  assert.equal(provider.maxOutputTokens, 512);
+  assert.equal(provider.responseFormat, "json");
+});
+
+test("configured OpenAI providers keep explicit options", () => {
+  const [provider] = resolveProviders({
+    config: {
+      providers: {
+        planner: {
+          id: "planner",
+          kind: "openai",
+          model: "gpt-planner",
+          reasoning: "low",
+          maxOutputTokens: 99,
+          responseFormat: "text"
+        }
+      }
+    },
+    providerList: "planner",
+    runtime: {
+      workspace: "C:/repo",
+      timeoutMs: 1000,
+      openaiModel: "gpt-runtime"
+    }
+  });
+
+  assert.equal(provider.id, "planner");
+  assert.equal(provider.model, "gpt-runtime");
+  assert.equal(provider.reasoning, "low");
+  assert.equal(provider.maxOutputTokens, 99);
+  assert.equal(provider.responseFormat, "text");
+});
+
 test("renders command provider templates", () => {
   assert.equal(
     renderTemplate("{{id}}: {{prompt}} @ {{workspace}}", {

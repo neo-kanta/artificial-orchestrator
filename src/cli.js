@@ -6,8 +6,11 @@ import { runDuet } from "./orchestrator.js";
 import { publishPrivate } from "./publish.js";
 import { tailLatest } from "./tail.js";
 import { addProject, currentProject, listProjects, resolveProjectContext, useProject } from "./projects.js";
+import { listOrgs, orgSummary, resolveOrg } from "./orgs.js";
+import { callProvider } from "./providers.js";
 
 const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
+const DEFAULT_OPENAI_MODEL = "gpt-5.5";
 
 export async function main(argv) {
   const args = parseArgs(argv);
@@ -32,6 +35,7 @@ export async function main(argv) {
   });
   const workspace = projectContext.path;
   const config = await loadConfig({ workspace, configPath: args.config });
+  const runtime = runtimeOptions(args, workspace);
 
   if (command === "doctor") {
     const ok = await doctor({
@@ -48,28 +52,24 @@ export async function main(argv) {
     const goal = String(args.goal ?? args.g ?? args._.slice(1).join(" ")).trim();
     if (!goal) throw new Error("Missing goal. Example: ao run --goal \"finish the market data tests\"");
 
-    const timeoutMs = Number(args.timeoutMs ?? 15 * 60 * 1000);
-    const providers = resolveProviders({
-      config,
-      providerList: args.providers,
-      codexOnly: Boolean(args.codexOnly),
-      claudeOnly: Boolean(args.claudeOnly),
-      runtime: {
-        workspace,
-        timeoutMs,
-        apply: Boolean(args.apply),
-        unsafe: Boolean(args.unsafe),
-        codexModel: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
-        claudeModel: args.claudeModel ? String(args.claudeModel) : undefined,
-        maxBudgetUsd: args.maxBudgetUsd ?? undefined,
-        claudeTools: Boolean(args.claudeTools)
-      }
-    });
+    const org = args.org
+      ? resolveOrg({ config, orgName: String(args.org), runtime })
+      : null;
+    const providers = org
+      ? []
+      : resolveProviders({
+          config,
+          providerList: args.providers,
+          codexOnly: Boolean(args.codexOnly),
+          claudeOnly: Boolean(args.claudeOnly),
+          runtime
+        });
 
     await runDuet({
       goal,
       workspace,
       project: projectContext,
+      org,
       rounds: Number(args.rounds ?? args.r ?? 2),
       apply: Boolean(args.apply),
       historyChars: Number(args.historyChars ?? 12000),
@@ -78,7 +78,17 @@ export async function main(argv) {
     return;
   }
 
+  if (command === "org" || command === "orgs") {
+    await handleOrgCommand(args, config, runtime, { goalArgsStart: 3, workspace, projectContext });
+    return;
+  }
+
   if (command === "providers") {
+    if (args._[1] === "doctor") {
+      await handleProviderDoctor(args, config, runtime);
+      return;
+    }
+
     const providers = { ...BUILT_IN_PROVIDERS, ...(config.providers ?? {}) };
     if (config.path) console.log(`config: ${config.path}`);
     for (const provider of Object.values(providers)) {
@@ -109,6 +119,10 @@ function help() {
 Usage:
   ao doctor [--ping] [--workspace <path>]
   ao run --goal "<mission>" [--project <name>] [--workspace <path>] [--providers claude,codex] [--rounds 2] [--apply]
+  ao run --org software-team --goal "<mission>"
+  ao org list
+  ao org show software-team
+  ao org run software-team --goal "<mission>"
   ao project add <name> --path <path> [--use]
   ao project list
   ao project use <name>
@@ -120,6 +134,7 @@ Usage:
 Commands:
   doctor   Check local codex, claude, git, gh, and optional API pings.
   run      Let Claude review/architect and Codex build/execute in rounds.
+  org      List or run AI organizations such as software-team.
   project  Add, list, use, or show known workspaces.
   providers List built-in and configured AI providers.
   tail     Print the latest transcript for a workspace.
@@ -131,6 +146,8 @@ Key options:
   --codex-model <model>   Default: ${DEFAULT_CODEX_MODEL}
   --claude-model <model>  Optional Claude model alias/name.
   --providers <ids>       Comma-separated provider pipeline. Default: claude,codex.
+  --org <name>            Run a built-in or configured AI organization.
+  --openai-model <model>  Default: ${DEFAULT_OPENAI_MODEL}
   --project <name>        Run against a saved project.
   --config <file>         JSON config with custom command providers.
   --max-budget-usd <n>    Passed to Claude CLI when supported.
@@ -140,6 +157,82 @@ Notes:
   The transcript shows public reasoning, decisions, outputs, and status. It does not expose private hidden chain-of-thought.
   Session files are stored under <workspace>/.duet/sessions/.
 `);
+}
+
+function runtimeOptions(args, workspace) {
+  return {
+    workspace,
+    timeoutMs: Number(args.timeoutMs ?? 15 * 60 * 1000),
+    apply: Boolean(args.apply),
+    unsafe: Boolean(args.unsafe),
+    codexModel: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
+    claudeModel: args.claudeModel ? String(args.claudeModel) : undefined,
+    openaiModel: String(args.openaiModel ?? DEFAULT_OPENAI_MODEL),
+    openaiReasoning: args.openaiReasoning ? String(args.openaiReasoning) : undefined,
+    openaiMaxOutputTokens: args.openaiMaxOutputTokens ? Number(args.openaiMaxOutputTokens) : undefined,
+    maxBudgetUsd: args.maxBudgetUsd ?? undefined,
+    claudeTools: Boolean(args.claudeTools)
+  };
+}
+
+async function handleOrgCommand(args, config, runtime, context) {
+  const action = String(args._[1] ?? (args._[0] === "orgs" ? "list" : "list"));
+
+  if (action === "list" || action === "ls") {
+    for (const org of listOrgs(config)) {
+      console.log(`${org.id}\t${org.label ?? org.id}\t${org.description ?? ""}`);
+    }
+    return;
+  }
+
+  if (action === "show") {
+    const orgName = String(args._[2] ?? "");
+    if (!orgName) throw new Error("Missing org name. Example: ao org show software-team");
+    const org = resolveOrg({ config, orgName, runtime });
+    console.log(orgSummary(org));
+    return;
+  }
+
+  if (action === "run") {
+    const orgName = String(args._[2] ?? "");
+    if (!orgName) throw new Error("Missing org name. Example: ao org run software-team --goal \"ship safely\"");
+    const goal = String(args.goal ?? args.g ?? args._.slice(context.goalArgsStart).join(" ")).trim();
+    if (!goal) throw new Error("Missing goal. Example: ao org run software-team --goal \"ship safely\"");
+    const org = resolveOrg({ config, orgName, runtime });
+
+    await runDuet({
+      goal,
+      workspace: context.workspace,
+      project: context.projectContext,
+      org,
+      providers: [],
+      rounds: Number(args.rounds ?? args.r ?? 1),
+      apply: Boolean(args.apply),
+      historyChars: Number(args.historyChars ?? 12000)
+    });
+    return;
+  }
+
+  throw new Error(`Unknown org command: ${action}`);
+}
+
+async function handleProviderDoctor(args, config, runtime) {
+  const id = String(args._[2] ?? "");
+  if (!id) throw new Error("Missing provider id. Example: ao providers doctor openai");
+
+  const [provider] = resolveProviders({ config, providerList: id, runtime });
+  if (provider.kind === "openai") {
+    const hasKey = Boolean(process.env.OPENAI_API_KEY);
+    console.log(`${hasKey ? "ok" : "fail"}\topenai env\t${hasKey ? "OPENAI_API_KEY is set" : "OPENAI_API_KEY is not set"}`);
+
+    if (args.ping && hasKey) {
+      const result = await callProvider({ ...provider, responseFormat: "text" }, "Reply with exactly: openai ok");
+      console.log(`${result.ok && /openai ok/i.test(result.text) ? "ok" : "fail"}\topenai ping\t${result.text || result.errors?.[0] || "unavailable"}`);
+    }
+    return;
+  }
+
+  console.log(`ok\t${provider.id}\tconfigured as ${provider.kind ?? "command"}`);
 }
 
 async function handleProjectCommand(args, registryPath) {
