@@ -1,0 +1,26 @@
+{
+  "name": "architect-duet",
+  "version": "0.1.0",
+  "description": "A small CLI that lets Codex and Claude collaborate with visible transcripts, status checks, and token/limit tracking.",
+  "type": "module",
+  "bin": {
+    "duet": "./bin/duet.js"
+  },
+  "scripts": {
+    "start": "node ./bin/duet.js",
+    "test": "node --test",
+    "doctor": "node ./bin/duet.js doctor"
+  },
+  "keywords": [
+    "codex",
+    "claude",
+    "cli",
+    "orchestration",
+    "agents"
+  ],
+  "author": "neokanta",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}
