@@ -9,6 +9,7 @@ export async function runDuet(options) {
   const session = await createSession(options.workspace, options.goal, { project: options.project, org: options.org });
   const history = [];
   const pipeline = options.org ? options.org.roles : options.providers;
+  const call = options.callProvider ?? callProvider;
 
   console.log(color("bold", "Artificial Orchestrator"));
   console.log(`session: ${session.dir}`);
@@ -30,7 +31,7 @@ export async function runDuet(options) {
         round,
         provider,
         fn: () =>
-          callProvider(
+          call(
             provider,
             providerPrompt({
               provider,

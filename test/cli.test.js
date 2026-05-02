@@ -79,8 +79,7 @@ test("org run executes configured role pipeline and writes org state", async (t)
             label: "Fake Provider",
             kind: "command",
             role: "manager",
-            command: process.execPath,
-            args: ["-e", "console.log('Summary ok\\nStatus: done')"],
+            command: "fake-provider",
             promptMode: "stdin",
             parser: "text",
             timeoutMs: 5000
@@ -105,9 +104,28 @@ test("org run executes configured role pipeline and writes org state", async (t)
     "utf8"
   );
 
+  const calls = [];
   await captureStdout(() =>
-    main(["org", "run", "tiny", "--workspace", dir, "--config", configPath, "--goal", "coordinate"])
+    main(["org", "run", "tiny", "--workspace", dir, "--config", configPath, "--goal", "coordinate"], {
+      callProvider: async (provider, prompt) => {
+        calls.push({ provider, prompt });
+        return {
+          ok: true,
+          text: "Summary ok\nStatus: done",
+          usage: null,
+          costUsd: null,
+          limit: null,
+          errors: [],
+          stderr: "",
+          durationMs: 12
+        };
+      }
+    })
   );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].provider.id, "manager");
+  assert.match(calls[0].prompt, /Durable organization state/);
 
   const latest = (await readFile(join(dir, ".duet", "latest"), "utf8")).trim();
   const orgState = JSON.parse(await readFile(join(latest, "org-state.json"), "utf8"));
