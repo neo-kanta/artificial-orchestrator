@@ -7,14 +7,15 @@ import { publishPrivate } from "./publish.js";
 import { tailLatest } from "./tail.js";
 import { addProject, currentProject, listProjects, resolveProjectContext, useProject } from "./projects.js";
 import { listOrgs, orgSummary, resolveOrg } from "./orgs.js";
-import { callProvider } from "./providers.js";
+import { callProvider as defaultCallProvider } from "./providers.js";
 
 const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
 const DEFAULT_OPENAI_MODEL = "gpt-5.5";
 
-export async function main(argv) {
+export async function main(argv, deps = {}) {
   const args = parseArgs(argv);
   const command = args._[0] ?? "help";
+  const callProvider = deps.callProvider ?? defaultCallProvider;
 
   if (command === "help" || args.help || args.h) {
     help();
@@ -73,19 +74,20 @@ export async function main(argv) {
       rounds: Number(args.rounds ?? args.r ?? 2),
       apply: Boolean(args.apply),
       historyChars: Number(args.historyChars ?? 12000),
-      providers
+      providers,
+      callProvider
     });
     return;
   }
 
   if (command === "org" || command === "orgs") {
-    await handleOrgCommand(args, config, runtime, { goalArgsStart: 3, workspace, projectContext });
+    await handleOrgCommand(args, config, runtime, { goalArgsStart: 3, workspace, projectContext, callProvider });
     return;
   }
 
   if (command === "providers") {
     if (args._[1] === "doctor") {
-      await handleProviderDoctor(args, config, runtime);
+      await handleProviderDoctor(args, config, runtime, callProvider);
       return;
     }
 
@@ -208,7 +210,8 @@ async function handleOrgCommand(args, config, runtime, context) {
       providers: [],
       rounds: Number(args.rounds ?? args.r ?? 1),
       apply: Boolean(args.apply),
-      historyChars: Number(args.historyChars ?? 12000)
+      historyChars: Number(args.historyChars ?? 12000),
+      callProvider: context.callProvider
     });
     return;
   }
@@ -216,7 +219,7 @@ async function handleOrgCommand(args, config, runtime, context) {
   throw new Error(`Unknown org command: ${action}`);
 }
 
-async function handleProviderDoctor(args, config, runtime) {
+async function handleProviderDoctor(args, config, runtime, callProvider) {
   const id = String(args._[2] ?? "");
   if (!id) throw new Error("Missing provider id. Example: ao providers doctor openai");
 

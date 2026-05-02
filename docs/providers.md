@@ -90,3 +90,5 @@ Providers receive both recent transcript text and durable state before every tur
 - `provider-state.json` carries latest per-provider status, limits, usage, and handoff summaries.
 
 Adapters should keep their public output concise and include a short handoff for the next provider. The orchestrator persists that handoff even when a provider blocks on limits or credentials.
+
+CLI and orchestrator tests can inject a provider call function into `main(argv, { callProvider })` or `runDuet({ callProvider })`. Use that path for deterministic coverage of provider routing, prompts, session files, and org state; reserve spawned command providers for adapter-level tests because some CI and sandbox environments block child-process execution.
