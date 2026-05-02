@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendTurn, createSession, readProviderContext } from "../src/logger.js";
+import { appendTurn, createSession, finalizeSession, readProviderContext } from "../src/logger.js";
 
 test("creates durable session state and appends provider handoffs", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao state-"));
@@ -41,8 +41,20 @@ test("creates durable session state and appends provider handoffs", async (t) =>
   assert.equal(providerState.handoffs.length, 1);
 
   const status = JSON.parse(await readFile(join(session.dir, "status.json"), "utf8"));
+  assert.equal(status.phase, "running");
   assert.equal(status.project.name, "demo");
   assert.equal(status.rounds[0].provider, "codex");
+
+  await finalizeSession(session, {
+    status: "done",
+    reason: "provider-reported-done",
+    provider: "codex",
+    round: 1
+  });
+
+  const finalStatus = JSON.parse(await readFile(join(session.dir, "status.json"), "utf8"));
+  assert.equal(finalStatus.phase, "done");
+  assert.equal(finalStatus.final.provider, "codex");
 });
 
 test("creates and updates durable org state for role turns", async (t) => {

@@ -14,6 +14,10 @@ export async function createSession(root, goal, metadata = {}) {
     org: metadata.org ? { id: metadata.org.id, label: metadata.org.label ?? metadata.org.id } : null,
     startedAt: now,
     updatedAt: now,
+    phase: "running",
+    completedAt: null,
+    final: null,
+    blockers: [],
     providers: {},
     rounds: []
   };
@@ -24,6 +28,9 @@ export async function createSession(root, goal, metadata = {}) {
     project: metadata.project ?? null,
     startedAt: now,
     updatedAt: now,
+    phase: "running",
+    completedAt: null,
+    final: null,
     providers: {},
     handoffs: []
   };
@@ -160,6 +167,68 @@ export async function appendTurn(session, turn) {
   }
 }
 
+export async function finalizeSession(session, final) {
+  const at = new Date().toISOString();
+  const status = normalizeFinalStatus(final?.status);
+  const blockers = Array.isArray(final?.blockers)
+    ? final.blockers.map((blocker) => String(blocker)).filter(Boolean)
+    : [];
+  const record = {
+    status,
+    reason: final?.reason ?? status,
+    provider: final?.provider ?? null,
+    round: final?.round ?? null,
+    blockers,
+    at
+  };
+
+  session.state.updatedAt = at;
+  session.state.phase = status;
+  session.state.completedAt = at;
+  session.state.final = record;
+  if (status === "blocked" && blockers.length > 0) {
+    session.state.blockers.push(...blockers.map((blocker) => ({ blocker, at, provider: record.provider, round: record.round })));
+  }
+
+  session.providerState.updatedAt = at;
+  session.providerState.phase = status;
+  session.providerState.completedAt = at;
+  session.providerState.final = record;
+
+  if (session.orgState) {
+    session.orgState.updatedAt = at;
+    session.orgState.phase = status;
+    if (status === "done") {
+      session.orgState.finalDecision ??= {
+        role: record.provider,
+        provider: record.provider,
+        at,
+        summary: record.reason
+      };
+    }
+    await writeJson(join(session.dir, "org-state.json"), session.orgState);
+  }
+
+  await writeJson(join(session.dir, "status.json"), session.state);
+  await writeJson(join(session.dir, "provider-state.json"), session.providerState);
+
+  const blockerText = blockers.length > 0 ? `\n\nBlockers:\n${blockers.map((blocker) => `- ${blocker}`).join("\n")}` : "";
+  const summary = [
+    `## Session ${status}`,
+    "",
+    `at: ${at}`,
+    `reason: ${record.reason}`,
+    record.provider ? `provider: ${record.provider}` : null,
+    record.round ? `round: ${record.round}` : null,
+    blockerText
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await appendFile(join(session.dir, "transcript.md"), `${summary}\n\n`, "utf8");
+  await appendFile(join(session.dir, "handoff.md"), `${summary}\n\n`, "utf8");
+}
+
 export async function readLatest(root) {
   const file = join(root, ".duet", "latest");
   const value = await readFile(file, "utf8");
@@ -219,4 +288,10 @@ function compactText(text, maxChars) {
 
   if (normalized.length <= maxChars) return normalized;
   return `${normalized.slice(0, Math.max(0, maxChars - 80)).trim()}\n\n[truncated: ${normalized.length - maxChars} chars omitted]`;
+}
+
+function normalizeFinalStatus(status) {
+  const value = String(status ?? "").toLowerCase();
+  if (value === "done" || value === "blocked" || value === "rounds_exhausted") return value;
+  return "blocked";
 }

@@ -58,9 +58,12 @@ Org mode adds `org-state.json` to the normal session directory:
 Important files:
 
 - `org-state.json` - role statuses, phase, blockers, and final decision.
+- `status.json` - top-level run lifecycle, including final `done`, `blocked`, or `rounds_exhausted` state.
 - `provider-state.json` - provider and role handoff summaries.
 - `handoff.md` - readable role-to-role notes.
 - `transcript.md` - full public run transcript.
+
+Org runs stop when a configured done or blocked status is reached. The same terminal state is written to `status.json`, `provider-state.json`, and `org-state.json` so later automation can inspect the exact role, round, and blocker.
 
 ## Custom Organizations
 
