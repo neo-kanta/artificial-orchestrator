@@ -19,7 +19,7 @@ The first project added becomes active. Use `--use` when adding a project to mak
 ao run --project ims --goal "finish the market data feature cleanly"
 ```
 
-If `--project` and `--workspace` are omitted, `ao run` uses the active project. If no active project exists, it uses the current working directory and labels it as unregistered.
+If `--project` and `--workspace` are omitted, `ao run` and `ao org run` use the active project. If no active project exists, they use the current working directory and label it as unregistered.
 
 ## Registry Location
 

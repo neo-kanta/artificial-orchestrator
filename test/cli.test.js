@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { main } from "../src/cli.js";
 
 test("project CLI adds, lists, uses, and shows current projects", async (t) => {
@@ -134,6 +134,81 @@ test("org run executes configured role pipeline and writes org state", async (t)
   assert.equal(orgState.roles.manager.status, "done");
 });
 
+test("org run uses the active project when no workspace or project is passed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "ao org-active-project-"));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const registryPath = join(dir, "projects.json");
+  const projectPath = join(dir, "active-project");
+  const configPath = join(dir, "artificial-orchestrator.config.json");
+
+  await captureStdout(() =>
+    main(["project", "add", "alpha", "--path", projectPath, "--use", "--project-registry", registryPath])
+  );
+
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        providers: {
+          fake: {
+            label: "Fake Provider",
+            kind: "command",
+            role: "manager",
+            command: "fake-provider",
+            promptMode: "stdin",
+            parser: "text",
+            timeoutMs: 5000
+          }
+        },
+        orgs: {
+          tiny: {
+            label: "Tiny Org",
+            pipeline: ["manager"],
+            roles: {
+              manager: {
+                provider: "fake",
+                responsibility: "Finish immediately."
+              }
+            }
+          }
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const calls = [];
+  const output = await captureStdout(() =>
+    main(["org", "run", "tiny", "--project-registry", registryPath, "--config", configPath, "--goal", "coordinate"], {
+      callProvider: async (provider) => {
+        calls.push({ provider });
+        return {
+          ok: true,
+          text: "Summary ok\nStatus: done",
+          usage: null,
+          costUsd: null,
+          limit: null,
+          errors: [],
+          stderr: "",
+          durationMs: 12
+        };
+      }
+    })
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].provider.workspace, resolve(projectPath));
+  assert.match(output, /project: alpha/);
+  assert.match(output, new RegExp(`workspace: ${escapeRegExp(resolve(projectPath))}`));
+
+  const latest = (await readFile(join(projectPath, ".duet", "latest"), "utf8")).trim();
+  const status = JSON.parse(await readFile(join(latest, "status.json"), "utf8"));
+  assert.equal(status.project.name, "alpha");
+});
+
 test("providers doctor openai reports missing key without ping", async () => {
   const oldKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -177,4 +252,8 @@ function restoreEnv(key, value) {
   } else {
     process.env[key] = value;
   }
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

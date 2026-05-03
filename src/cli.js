@@ -29,9 +29,10 @@ export async function main(argv, deps = {}) {
     return;
   }
 
+  const useRunProjectDefault = isRunLikeCommand(args, command);
   const projectContext = await resolveProjectContext({
     projectName: args.project ? String(args.project) : undefined,
-    workspace: args.workspace ?? args.w ?? (command === "run" ? undefined : process.cwd()),
+    workspace: args.workspace ?? args.w ?? (useRunProjectDefault ? undefined : process.cwd()),
     registryPath
   });
   const workspace = projectContext.path;
@@ -159,6 +160,12 @@ Notes:
   The transcript shows public reasoning, decisions, outputs, and status. It does not expose private hidden chain-of-thought.
   Session files are stored under <workspace>/.duet/sessions/.
 `);
+}
+
+function isRunLikeCommand(args, command) {
+  if (command === "run") return true;
+  if (command !== "org" && command !== "orgs") return false;
+  return String(args._[1] ?? "").toLowerCase() === "run";
 }
 
 function runtimeOptions(args, workspace) {
