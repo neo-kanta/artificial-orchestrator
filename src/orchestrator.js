@@ -1,4 +1,4 @@
-import { appendTurn, createSession, readOrgContext, readProviderContext } from "./logger.js";
+import { appendTurn, createSession, finalizeSession, readOrgContext, readProviderContext } from "./logger.js";
 import { callProvider } from "./providers.js";
 import { usageLine } from "./parsers.js";
 import { providerPrompt } from "./prompts.js";
@@ -46,20 +46,25 @@ export async function runDuet(options) {
         history
       });
 
-      if (options.org && shouldStopOrg(options.org, turn.orgStatus)) {
-        console.log(color(turn.orgStatus === "done" ? "green" : "yellow", `\nORGANIZATION_STATUS: ${turn.orgStatus}`));
+      const terminal = options.org
+        ? orgTerminalStatus(options.org, turn)
+        : providerTerminalStatus(turn);
+      if (terminal) {
+        await finalizeSession(session, terminal);
+        console.log(color(terminal.status === "done" ? "green" : "yellow", `\nORCHESTRATOR_STATUS: ${terminal.status}`));
+        printSessionFiles(session);
         return session;
       }
     }
-
-    if (history.some((entry) => entry.round === round && /(DUET_STATUS|ORCHESTRATOR_STATUS):\s*done/i.test(entry.text))) {
-      console.log(color("green", "\nORCHESTRATOR_STATUS: done"));
-      break;
-    }
   }
 
-  console.log(`\nTranscript: ${session.dir}\\transcript.md`);
-  console.log(`Machine log: ${session.dir}\\events.ndjson`);
+  await finalizeSession(session, {
+    status: "rounds_exhausted",
+    reason: "round-limit-reached",
+    blockers: [`Stopped after ${options.rounds} round(s) without a done or blocked status.`]
+  });
+  console.log(color("yellow", "\nORCHESTRATOR_STATUS: rounds_exhausted"));
+  printSessionFiles(session);
   return session;
 }
 
@@ -127,8 +132,86 @@ function orgBlockers(result) {
   return result.ok ? [] : [String(result.text ?? "provider failed").trim()];
 }
 
+function providerTerminalStatus(turn) {
+  if (!turn.ok) {
+    return {
+      status: "blocked",
+      reason: "provider-blocked",
+      provider: turn.provider,
+      round: turn.round,
+      blockers: terminalBlockers(turn)
+    };
+  }
+
+  const status = reportedStatus(turn.text);
+  if (status === "done" || status === "blocked") {
+    return {
+      status,
+      reason: `provider-reported-${status}`,
+      provider: turn.provider,
+      round: turn.round,
+      blockers: status === "blocked" ? terminalBlockers(turn) : []
+    };
+  }
+
+  return null;
+}
+
+function orgTerminalStatus(org, turn) {
+  if (!turn.ok) {
+    return {
+      status: "blocked",
+      reason: "provider-blocked",
+      provider: turn.provider,
+      round: turn.round,
+      blockers: terminalBlockers(turn)
+    };
+  }
+
+  if (!shouldStopOrg(org, turn.orgStatus)) return null;
+  return {
+    status: turn.orgStatus,
+    reason: `organization-${turn.orgStatus}`,
+    provider: turn.provider,
+    round: turn.round,
+    blockers: turn.orgStatus === "blocked" ? terminalBlockers(turn) : []
+  };
+}
+
+function reportedStatus(text) {
+  const match = String(text ?? "").match(/\b(?:DUET_STATUS|ORCHESTRATOR_STATUS|Status):\s*(done|blocked|continue)\b/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function terminalBlockers(turn) {
+  const values = [
+    ...(Array.isArray(turn.blockers) ? turn.blockers : []),
+    ...(Array.isArray(turn.errors) ? turn.errors : []),
+    turn.limit ? `Provider limit reset: ${turn.limit.reset}` : null,
+    turn.stderr,
+    turn.text
+  ];
+
+  return values
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .map((value) => compactText(value, 500));
+}
+
 function shouldStopOrg(org, status) {
   const done = org.stopConditions?.doneStatuses ?? ["done"];
   const blocked = org.stopConditions?.blockedStatuses ?? ["blocked"];
   return done.includes(status) || blocked.includes(status);
+}
+
+function printSessionFiles(session) {
+  console.log(`\nTranscript: ${session.dir}\\transcript.md`);
+  console.log(`Status: ${session.dir}\\status.json`);
+  console.log(`Machine log: ${session.dir}\\events.ndjson`);
+}
+
+function compactText(text, maxChars) {
+  const normalized = String(text ?? "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxChars - 80)).trim()}\n\n[truncated: ${normalized.length - maxChars} chars omitted]`;
 }

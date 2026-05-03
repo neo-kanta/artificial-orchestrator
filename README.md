@@ -75,11 +75,14 @@ Important files:
 
 - `transcript.md` - human-readable conversation and status.
 - `events.ndjson` - machine-readable turn log.
-- `status.json` - latest provider status, usage, limits, and round state.
+- `status.json` - latest provider status, usage, limits, round state, and final run phase.
 - `handoff.md` - durable provider-to-provider handoff notes.
 - `provider-state.json` - latest per-provider state and handoff summaries.
 
 Every run prints the selected project name and workspace path before providers start.
+If a provider fails, hits a configured limit, or reports `DUET_STATUS: blocked`, the run stops safely and records `phase: "blocked"` in `status.json`.
+If a provider reports `DUET_STATUS: done` or `ORCHESTRATOR_STATUS: done`, the run records `phase: "done"` and stops without spending more provider calls.
+If the configured round limit is reached first, the run records `phase: "rounds_exhausted"` so automation can resume or inspect the handoff.
 
 ## Flexible Providers
 
