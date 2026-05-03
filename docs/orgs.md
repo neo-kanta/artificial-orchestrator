@@ -39,6 +39,8 @@ docs      -> openai
 ao org run software-team --project ims --goal "finish the market data feature cleanly"
 ```
 
+When `--project` and `--workspace` are omitted, `ao org run` uses the active project from the project registry.
+
 Equivalent:
 
 ```powershell

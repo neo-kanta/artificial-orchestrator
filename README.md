@@ -30,7 +30,7 @@ ao project current
 ao project use ims
 ```
 
-The first project you add becomes active automatically. After that, `ao run` uses the active project when no `--workspace` or `--project` is provided. You can also select a project for one run:
+The first project you add becomes active automatically. After that, `ao run` and `ao org run` use the active project when no `--workspace` or `--project` is provided. You can also select a project for one run:
 
 ```powershell
 ao run --project ims --goal "finish the market data feature cleanly"
@@ -128,6 +128,8 @@ ao org list
 ao org show software-team
 ao org run software-team --project ims --goal "finish the market data feature cleanly"
 ```
+
+If `--project` and `--workspace` are omitted, organization runs use the active project from the local registry.
 
 Equivalent run syntax:
 
