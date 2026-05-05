@@ -206,6 +206,7 @@ export async function callCommandProvider(prompt, provider) {
     usage: parsed.usage,
     costUsd: parsed.costUsd,
     raw: parsed.raw,
+    structured: structuredOutput(parsed.raw),
     limit,
     stderr: result.stderr.trim(),
     durationMs: result.durationMs
@@ -241,6 +242,10 @@ function renderEnv(env = {}, vars) {
   return Object.fromEntries(
     Object.entries(env).map(([key, value]) => [key, renderTemplate(String(value), vars)])
   );
+}
+
+function structuredOutput(raw) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
 }
 
 function scrubNoise(stderr) {
