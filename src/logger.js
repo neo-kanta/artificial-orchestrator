@@ -1,6 +1,26 @@
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { join } from "node:path";
 
+const NUMBERED_SECTION_BOUNDARY = new RegExp(
+  `^\\s*\\d+[.)]\\s+(?:${[
+    "Architecture direction",
+    "Critical risks",
+    "Concrete instructions for Codex",
+    "Verification checklist",
+    "Action taken or proposed",
+    "Files changed or intended",
+    "Tests/checks run or recommended",
+    "Remaining blockers",
+    "Role perspective",
+    "Recommended next action",
+    "Risks or constraints",
+    "Verification",
+    "DUET_STATUS",
+    "ORCHESTRATOR_STATUS"
+  ].join("|")})\\s*:?\\s*$`,
+  "i"
+);
+
 export async function createSession(root, goal, metadata = {}) {
   const safe = new Date().toISOString().replace(/[:.]/g, "-");
   const dir = join(root, ".duet", "sessions", safe);
@@ -90,6 +110,8 @@ export async function appendTurn(session, turn) {
     `${title}\n\n${meta}\n\n${turn.text || "(no output)"}\n\n`
   );
 
+  const handoffText = handoffForTurn(turn);
+
   session.state.updatedAt = event.at;
   session.state.providers[turn.provider] = {
     ok: turn.ok,
@@ -107,7 +129,7 @@ export async function appendTurn(session, turn) {
 
   await writeJson(join(session.dir, "status.json"), session.state);
 
-  const handoff = formatTurnHandoff(turn, event.at);
+  const handoff = formatTurnHandoff(turn, event.at, handoffText);
   await appendFile(join(session.dir, "handoff.md"), `${handoff}\n`, "utf8");
 
   session.providerState.updatedAt = event.at;
@@ -119,14 +141,14 @@ export async function appendTurn(session, turn) {
     usage: turn.usage ?? null,
     costUsd: turn.costUsd ?? null,
     lastDurationMs: turn.durationMs,
-    handoff: compactText(turn.text, 1600)
+    handoff: handoffText
   };
   session.providerState.handoffs.push({
     round: turn.round,
     provider: turn.provider,
     ok: turn.ok,
     at: event.at,
-    handoff: compactText(turn.text, 1600)
+    handoff: handoffText
   });
 
   await writeJson(join(session.dir, "provider-state.json"), session.providerState);
@@ -267,7 +289,7 @@ function formatProject(project) {
   return [`Project: ${project.name}`, `Path: ${project.path}`, ""].join("\n");
 }
 
-function formatTurnHandoff(turn, at) {
+function formatTurnHandoff(turn, at, handoffText) {
   const meta = [
     `status: ${turn.ok ? "ok" : "blocked"}`,
     turn.usageLine,
@@ -277,7 +299,53 @@ function formatTurnHandoff(turn, at) {
     .filter(Boolean)
     .join(" | ");
 
-  return [`## Round ${turn.round} - ${turn.provider}`, "", `at: ${at}`, meta, "", compactText(turn.text || "(no output)", 1600), ""].join("\n");
+  return [`## Round ${turn.round} - ${turn.provider}`, "", `at: ${at}`, meta, "", `Handoff: ${handoffText}`, ""].join("\n");
+}
+
+function handoffForTurn(turn) {
+  const structured = compactText(turn.structured?.handoff ?? "", 1600);
+  if (structured) return structured;
+
+  const labeled = extractHandoffSection(turn.text);
+  if (labeled) return compactText(labeled, 1600);
+
+  return compactText(turn.text || "(no output)", 1600);
+}
+
+function extractHandoffSection(text) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const handoffStart = lines.findIndex((line) => handoffHeader(line) !== null);
+  if (handoffStart === -1) return "";
+
+  const firstLine = handoffHeader(lines[handoffStart]);
+  const collected = [];
+  if (firstLine) collected.push(firstLine);
+
+  for (const line of lines.slice(handoffStart + 1)) {
+    if (sectionBoundary(line)) break;
+    collected.push(line);
+  }
+
+  return collected.join("\n").trim();
+}
+
+function handoffHeader(line) {
+  const match = stripMarkdown(line).match(/^\s*(?:\d+[.)]\s*)?handoff(?:\s+for\s+next\s+provider)?\s*:?\s*(.*)$/i);
+  return match ? match[1].trim() : null;
+}
+
+function sectionBoundary(line) {
+  const value = stripMarkdown(line).trim();
+  if (!value) return false;
+  if (/^\s*(?:\d+[.)]\s*)?(?:DUET_STATUS|ORCHESTRATOR_STATUS|Status|Blockers|Files suggested|Tests suggested)\s*:/i.test(value)) {
+    return true;
+  }
+
+  return NUMBERED_SECTION_BOUNDARY.test(value);
+}
+
+function stripMarkdown(line) {
+  return String(line ?? "").replace(/\*\*/g, "");
 }
 
 function compactText(text, maxChars) {

@@ -92,6 +92,55 @@ test("flat runs stop and persist done status when a provider reports completion"
   assert.equal(status.final.provider, "reviewer");
 });
 
+test("flat runs stop on structured provider completion status", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao structured-done-run-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const calls = [];
+  const session = await quietStdout(() =>
+    runDuet({
+      goal: "finish from json",
+      workspace: root,
+      project: { name: "demo", path: root, source: "workspace" },
+      rounds: 3,
+      apply: false,
+      historyChars: 12000,
+      providers: [
+        { id: "planner", kind: "command", label: "Planner" },
+        { id: "builder", kind: "command", label: "Builder" }
+      ],
+      callProvider: async (provider) => {
+        calls.push(provider.id);
+        return {
+          ok: true,
+          text: "Planner finished the requested work.",
+          structured: {
+            summary: "Done.",
+            handoff: "No follow-up provider needed.",
+            status: "done",
+            blockers: [],
+            filesSuggested: [],
+            testsSuggested: []
+          },
+          usage: null,
+          costUsd: null,
+          limit: null,
+          errors: [],
+          stderr: "",
+          durationMs: 5
+        };
+      }
+    })
+  );
+
+  assert.deepEqual(calls, ["planner"]);
+
+  const status = JSON.parse(await readFile(join(session.dir, "status.json"), "utf8"));
+  assert.equal(status.phase, "done");
+  assert.equal(status.final.reason, "provider-reported-done");
+  assert.equal(status.final.provider, "planner");
+});
+
 async function quietStdout(fn) {
   const oldLog = console.log;
   const oldWrite = process.stdout.write;

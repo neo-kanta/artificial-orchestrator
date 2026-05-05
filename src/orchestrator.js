@@ -94,6 +94,7 @@ async function runProviderTurn({ session, round, provider, fn, history }) {
     blockers: orgBlockers(result),
     ok: result.ok,
     text,
+    structured: result.structured ?? null,
     usage: result.usage ?? null,
     usageLine: line,
     costUsd: result.costUsd ?? null,
@@ -119,8 +120,8 @@ function compactHistory(history, maxChars) {
 }
 
 function orgStatus(result) {
-  const value = result.structured?.status;
-  if (value === "done" || value === "blocked" || value === "continue") return value;
+  const value = structuredStatus(result.structured?.status);
+  if (value) return value;
 
   const match = String(result.text ?? "").match(/\bStatus:\s*(done|blocked|continue)\b/i);
   if (match) return match[1].toLowerCase();
@@ -143,7 +144,7 @@ function providerTerminalStatus(turn) {
     };
   }
 
-  const status = reportedStatus(turn.text);
+  const status = structuredStatus(turn.structured?.status) ?? reportedStatus(turn.text);
   if (status === "done" || status === "blocked") {
     return {
       status,
@@ -181,6 +182,12 @@ function orgTerminalStatus(org, turn) {
 function reportedStatus(text) {
   const match = String(text ?? "").match(/\b(?:DUET_STATUS|ORCHESTRATOR_STATUS|Status):\s*(done|blocked|continue)\b/i);
   return match ? match[1].toLowerCase() : null;
+}
+
+function structuredStatus(value) {
+  const status = String(value ?? "").toLowerCase();
+  if (status === "done" || status === "blocked" || status === "continue") return status;
+  return null;
 }
 
 function terminalBlockers(turn) {

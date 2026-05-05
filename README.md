@@ -80,8 +80,9 @@ Important files:
 - `provider-state.json` - latest per-provider state and handoff summaries.
 
 Every run prints the selected project name and workspace path before providers start.
+The full provider response stays in `transcript.md`; `handoff.md` and `provider-state.json` keep the provider's concise `handoff` value or `Handoff:` section for the next provider.
 If a provider fails, hits a configured limit, or reports `DUET_STATUS: blocked`, the run stops safely and records `phase: "blocked"` in `status.json`.
-If a provider reports `DUET_STATUS: done` or `ORCHESTRATOR_STATUS: done`, the run records `phase: "done"` and stops without spending more provider calls.
+If a provider reports structured `status: "done"` or text `DUET_STATUS: done` / `ORCHESTRATOR_STATUS: done`, the run records `phase: "done"` and stops without spending more provider calls.
 If the configured round limit is reached first, the run records `phase: "rounds_exhausted"` so automation can resume or inspect the handoff.
 
 ## Flexible Providers
