@@ -136,6 +136,48 @@ test("extracts numbered handoff sections from text providers", async (t) => {
   assert.equal(providerState.providers.claude.handoff, "Codex should verify numbered handoff extraction.\n1. Run npm test.");
 });
 
+test("extracts Markdown handoff headings from text providers", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao markdown-handoff-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const session = await createSession(root, "coordinate Markdown provider");
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "reviewer",
+    ok: true,
+    text: [
+      "## Review",
+      "Several paragraphs of context should remain only in the transcript.",
+      "",
+      "## Handoff for Codex",
+      "Add a regression test for Markdown handoff headings.",
+      "- Keep provider-state concise.",
+      "",
+      "## Verification",
+      "Run npm test.",
+      "Status: continue"
+    ].join("\n"),
+    usage: null,
+    usageLine: "usage: unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+
+  const providerState = JSON.parse(await readFile(join(session.dir, "provider-state.json"), "utf8"));
+  assert.equal(
+    providerState.providers.reviewer.handoff,
+    "Add a regression test for Markdown handoff headings.\n- Keep provider-state concise."
+  );
+
+  const handoff = await readFile(join(session.dir, "handoff.md"), "utf8");
+  assert.doesNotMatch(handoff, /Several paragraphs/);
+  assert.doesNotMatch(handoff, /Run npm test/);
+});
+
 test("creates and updates durable org state for role turns", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao org-state-"));
   t.after(async () => rm(root, { recursive: true, force: true }));

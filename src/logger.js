@@ -330,11 +330,15 @@ function extractHandoffSection(text) {
 }
 
 function handoffHeader(line) {
-  const match = stripMarkdown(line).match(/^\s*(?:\d+[.)]\s*)?handoff(?:\s+for\s+next\s+provider)?\s*:?\s*(.*)$/i);
+  const match = stripMarkdown(line).match(
+    /^\s*(?:\d+[.)]\s*)?handoff(?:\s+for\s+(?:next\s+(?:provider|role)|[A-Za-z0-9_.-]+))?\s*:?\s*(.*)$/i
+  );
   return match ? match[1].trim() : null;
 }
 
 function sectionBoundary(line) {
+  if (markdownHeading(line)) return true;
+
   const value = stripMarkdown(line).trim();
   if (!value) return false;
   if (/^\s*(?:\d+[.)]\s*)?(?:DUET_STATUS|ORCHESTRATOR_STATUS|Status|Blockers|Files suggested|Tests suggested)\s*:/i.test(value)) {
@@ -345,7 +349,15 @@ function sectionBoundary(line) {
 }
 
 function stripMarkdown(line) {
-  return String(line ?? "").replace(/\*\*/g, "");
+  return String(line ?? "")
+    .replace(/^\s{0,3}>\s?/, "")
+    .replace(/^\s{0,3}#{1,6}\s+/, "")
+    .replace(/^\s{0,3}[-*+]\s+/, "")
+    .replace(/\*\*/g, "");
+}
+
+function markdownHeading(line) {
+  return /^\s{0,3}#{1,6}\s+\S/.test(String(line ?? ""));
 }
 
 function compactText(text, maxChars) {
