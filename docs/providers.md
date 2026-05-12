@@ -79,6 +79,7 @@ The config shape is:
 - `maxOutputTokens`: passed to the Responses API as `max_output_tokens`.
 
 OpenAI credentials are read from `OPENAI_API_KEY`. Do not put secrets in provider config.
+Configured OpenAI providers keep their own `model` unless a run passes `--openai-model <model>` explicitly. Use that flag for one-off experiments; set `model` in config for stable provider roles.
 
 ## Maintainer Notes
 

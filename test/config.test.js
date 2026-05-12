@@ -73,16 +73,39 @@ test("configured OpenAI providers keep explicit options", () => {
     providerList: "planner",
     runtime: {
       workspace: "C:/repo",
+      timeoutMs: 1000
+    }
+  });
+
+  assert.equal(provider.id, "planner");
+  assert.equal(provider.model, "gpt-planner");
+  assert.equal(provider.reasoning, "low");
+  assert.equal(provider.maxOutputTokens, 99);
+  assert.equal(provider.responseFormat, "text");
+});
+
+test("explicit runtime OpenAI model overrides configured providers", () => {
+  const [provider] = resolveProviders({
+    config: {
+      providers: {
+        planner: {
+          id: "planner",
+          kind: "openai",
+          model: "gpt-planner",
+          reasoning: "low"
+        }
+      }
+    },
+    providerList: "planner",
+    runtime: {
+      workspace: "C:/repo",
       timeoutMs: 1000,
       openaiModel: "gpt-runtime"
     }
   });
 
-  assert.equal(provider.id, "planner");
   assert.equal(provider.model, "gpt-runtime");
   assert.equal(provider.reasoning, "low");
-  assert.equal(provider.maxOutputTokens, 99);
-  assert.equal(provider.responseFormat, "text");
 });
 
 test("renders command provider templates", () => {
