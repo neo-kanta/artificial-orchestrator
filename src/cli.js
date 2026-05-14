@@ -176,7 +176,7 @@ function runtimeOptions(args, workspace) {
     unsafe: Boolean(args.unsafe),
     codexModel: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
     claudeModel: args.claudeModel ? String(args.claudeModel) : undefined,
-    openaiModel: String(args.openaiModel ?? DEFAULT_OPENAI_MODEL),
+    openaiModel: args.openaiModel !== undefined ? String(args.openaiModel) : undefined,
     openaiReasoning: args.openaiReasoning ? String(args.openaiReasoning) : undefined,
     openaiMaxOutputTokens: args.openaiMaxOutputTokens ? Number(args.openaiMaxOutputTokens) : undefined,
     maxBudgetUsd: args.maxBudgetUsd ?? undefined,

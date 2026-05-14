@@ -222,6 +222,74 @@ test("providers doctor openai reports missing key without ping", async () => {
   }
 });
 
+test("run keeps configured OpenAI model unless CLI override is passed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "ao cli-openai-config-"));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const configPath = join(dir, "artificial-orchestrator.config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        providers: {
+          planner: {
+            label: "Planner",
+            kind: "openai",
+            role: "planner",
+            model: "gpt-planner",
+            reasoning: "low",
+            responseFormat: "json"
+          }
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const models = [];
+  const callProvider = async (provider) => {
+    models.push(provider.model);
+    return {
+      ok: true,
+      text: "Done.\nDUET_STATUS: done",
+      usage: null,
+      costUsd: null,
+      limit: null,
+      errors: [],
+      stderr: "",
+      durationMs: 1
+    };
+  };
+
+  await captureStdout(() =>
+    main(["run", "--workspace", dir, "--config", configPath, "--providers", "planner", "--goal", "plan"], {
+      callProvider
+    })
+  );
+  await captureStdout(() =>
+    main(
+      [
+        "run",
+        "--workspace",
+        dir,
+        "--config",
+        configPath,
+        "--providers",
+        "planner",
+        "--openai-model",
+        "gpt-override",
+        "--goal",
+        "plan"
+      ],
+      { callProvider }
+    )
+  );
+
+  assert.deepEqual(models, ["gpt-planner", "gpt-override"]);
+});
+
 async function captureStdout(fn) {
   const oldLog = console.log;
   const oldWrite = process.stdout.write;

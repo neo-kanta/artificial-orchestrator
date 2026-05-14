@@ -1,6 +1,6 @@
 # Artificial Orchestrator
 
-Artificial Orchestrator is a tiny CLI for watching Codex and Claude collaborate in a local terminal. Claude acts as the architect/reviewer by default, Codex acts as the builder/executor, and every public exchange is written to a transcript plus an NDJSON machine log.
+Artificial Orchestrator is a provider-agnostic CLI for coordinating AI agents in a local terminal. Claude and Codex are the default architect/builder pair, but configured command providers and the built-in OpenAI adapter use the same durable orchestration path. Every public exchange is written to a transcript plus an NDJSON machine log.
 
 It does not expose hidden chain-of-thought. It shows the useful parts: decisions, tradeoffs, actions, token usage when a CLI reports it, and provider limits such as Claude reset windows.
 
@@ -122,6 +122,8 @@ Use OpenAI in a flat provider pipeline:
 ```powershell
 ao run --providers openai,codex --goal "plan the next release"
 ```
+
+Configured OpenAI providers keep their configured model. Use `--openai-model <model>` only when you want a single run to override that setting.
 
 ## AI Organizations
 
