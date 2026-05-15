@@ -20,6 +20,7 @@ ao run --project ims --goal "finish the market data feature cleanly"
 ```
 
 If `--project` and `--workspace` are omitted, `ao run` and `ao org run` use the active project. If no active project exists, they use the current working directory and label it as unregistered.
+The resolved workspace must already exist when a run starts; the CLI stops early rather than creating a new empty directory from an incorrect project path.
 
 ## Registry Location
 
@@ -29,3 +30,13 @@ By default the registry is stored in the user config directory:
 - macOS/Linux: `~/.config/artificial-orchestrator/projects.json`
 
 Set `ARTIFICIAL_ORCHESTRATOR_HOME` or `AO_HOME` to move the registry. Tests and automation can also pass `--project-registry <path>`.
+
+## Watching Runs
+
+`ao tail` uses the active project when no `--project` or `--workspace` is passed:
+
+```powershell
+ao tail
+ao tail --project ims
+ao tail --workspace C:\Users\kanta\source\repos\ims-th-solution
+```

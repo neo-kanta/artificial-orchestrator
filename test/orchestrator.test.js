@@ -141,6 +141,34 @@ test("flat runs stop on structured provider completion status", async (t) => {
   assert.equal(status.final.provider, "planner");
 });
 
+test("runs reject missing workspaces before creating session state", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao missing-workspace-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const missing = join(root, "missing");
+
+  await assert.rejects(
+    () =>
+      quietStdout(() =>
+        runDuet({
+          goal: "do not create phantom workspaces",
+          workspace: missing,
+          project: { name: "missing", path: missing, source: "named" },
+          rounds: 1,
+          apply: false,
+          historyChars: 12000,
+          providers: [],
+          callProvider: async () => {
+            throw new Error("provider should not be called");
+          }
+        })
+      ),
+    /Workspace does not exist/
+  );
+
+  await assert.rejects(() => readFile(join(missing, ".duet", "latest"), "utf8"), /ENOENT/);
+});
+
 async function quietStdout(fn) {
   const oldLog = console.log;
   const oldWrite = process.stdout.write;

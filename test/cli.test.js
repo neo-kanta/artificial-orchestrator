@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { main } from "../src/cli.js";
@@ -141,6 +141,7 @@ test("org run uses the active project when no workspace or project is passed", a
   const registryPath = join(dir, "projects.json");
   const projectPath = join(dir, "active-project");
   const configPath = join(dir, "artificial-orchestrator.config.json");
+  await mkdir(projectPath, { recursive: true });
 
   await captureStdout(() =>
     main(["project", "add", "alpha", "--path", projectPath, "--use", "--project-registry", registryPath])
@@ -207,6 +208,39 @@ test("org run uses the active project when no workspace or project is passed", a
   const latest = (await readFile(join(projectPath, ".duet", "latest"), "utf8")).trim();
   const status = JSON.parse(await readFile(join(latest, "status.json"), "utf8"));
   assert.equal(status.project.name, "alpha");
+});
+
+test("tail uses the active project when no workspace or project is passed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "ao tail-active-project-"));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const registryPath = join(dir, "projects.json");
+  const projectPath = join(dir, "active-project");
+  await mkdir(projectPath, { recursive: true });
+
+  await captureStdout(() =>
+    main(["project", "add", "alpha", "--path", projectPath, "--use", "--project-registry", registryPath])
+  );
+
+  await captureStdout(() =>
+    main(["run", "--project-registry", registryPath, "--goal", "inspect active project"], {
+      callProvider: async () => ({
+        ok: true,
+        text: "Active project inspected.\nDUET_STATUS: done",
+        usage: null,
+        costUsd: null,
+        limit: null,
+        errors: [],
+        stderr: "",
+        durationMs: 1
+      })
+    })
+  );
+
+  const output = await captureStdout(() => main(["tail", "--project-registry", registryPath]));
+  assert.match(output, /Goal: inspect active project/);
+  assert.match(output, /Project: alpha/);
+  assert.match(output, /Active project inspected/);
 });
 
 test("providers doctor openai reports missing key without ping", async () => {
