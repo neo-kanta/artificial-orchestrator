@@ -29,10 +29,10 @@ export async function main(argv, deps = {}) {
     return;
   }
 
-  const useRunProjectDefault = isRunLikeCommand(args, command);
+  const useActiveProjectDefault = usesActiveProjectDefault(args, command);
   const projectContext = await resolveProjectContext({
     projectName: args.project ? String(args.project) : undefined,
-    workspace: args.workspace ?? args.w ?? (useRunProjectDefault ? undefined : process.cwd()),
+    workspace: args.workspace ?? args.w ?? (useActiveProjectDefault ? undefined : process.cwd()),
     registryPath
   });
   const workspace = projectContext.path;
@@ -131,7 +131,7 @@ Usage:
   ao project use <name>
   ao project current
   ao providers [--config <file>]
-  ao tail [--workspace <path>]
+  ao tail [--project <name>] [--workspace <path>]
   ao publish --repo <private-repo-name>
 
 Commands:
@@ -140,7 +140,7 @@ Commands:
   org      List or run AI organizations such as software-team.
   project  Add, list, use, or show known workspaces.
   providers List built-in and configured AI providers.
-  tail     Print the latest transcript for a workspace.
+  tail     Print the latest transcript for a project or workspace.
   publish  Create/push a private GitHub repo using gh auth.
 
 Key options:
@@ -162,8 +162,9 @@ Notes:
 `);
 }
 
-function isRunLikeCommand(args, command) {
+function usesActiveProjectDefault(args, command) {
   if (command === "run") return true;
+  if (command === "tail") return true;
   if (command !== "org" && command !== "orgs") return false;
   return String(args._[1] ?? "").toLowerCase() === "run";
 }

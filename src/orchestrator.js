@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { appendTurn, createSession, finalizeSession, readOrgContext, readProviderContext } from "./logger.js";
 import { callProvider } from "./providers.js";
 import { usageLine } from "./parsers.js";
@@ -6,6 +7,7 @@ import { workspaceSnapshot } from "./snapshot.js";
 import { color } from "./ansi.js";
 
 export async function runDuet(options) {
+  await assertWorkspaceDirectory(options.workspace);
   const session = await createSession(options.workspace, options.goal, { project: options.project, org: options.org });
   const history = [];
   const pipeline = options.org ? options.org.roles : options.providers;
@@ -66,6 +68,16 @@ export async function runDuet(options) {
   console.log(color("yellow", "\nORCHESTRATOR_STATUS: rounds_exhausted"));
   printSessionFiles(session);
   return session;
+}
+
+async function assertWorkspaceDirectory(workspace) {
+  try {
+    const info = await stat(workspace);
+    if (!info.isDirectory()) throw new Error(`Workspace is not a directory: ${workspace}`);
+  } catch (error) {
+    if (error.code === "ENOENT") throw new Error(`Workspace does not exist: ${workspace}`);
+    throw error;
+  }
 }
 
 async function runProviderTurn({ session, round, provider, fn, history }) {
