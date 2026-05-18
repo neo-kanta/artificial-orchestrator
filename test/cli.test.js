@@ -125,6 +125,7 @@ test("org run executes configured role pipeline and writes org state", async (t)
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].provider.id, "manager");
+  assert.equal(calls[0].provider.goal, "coordinate");
   assert.match(calls[0].prompt, /Durable organization state/);
 
   const latest = (await readFile(join(dir, ".duet", "latest"), "utf8")).trim();
@@ -322,6 +323,56 @@ test("run keeps configured OpenAI model unless CLI override is passed", async (t
   );
 
   assert.deepEqual(models, ["gpt-planner", "gpt-override"]);
+});
+
+test("run passes the goal into hydrated command providers", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "ao cli-provider-goal-"));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const configPath = join(dir, "artificial-orchestrator.config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        providers: {
+          local: {
+            label: "Local Provider",
+            kind: "command",
+            role: "reviewer",
+            command: "fake-provider",
+            args: ["--goal", "{{goal}}"],
+            promptMode: "stdin",
+            parser: "text"
+          }
+        }
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const calls = [];
+  await captureStdout(() =>
+    main(["run", "--workspace", dir, "--config", configPath, "--providers", "local", "--goal", "review provider templates"], {
+      callProvider: async (provider) => {
+        calls.push(provider);
+        return {
+          ok: true,
+          text: "Reviewed provider templates.\nDUET_STATUS: done",
+          usage: null,
+          costUsd: null,
+          limit: null,
+          errors: [],
+          stderr: "",
+          durationMs: 1
+        };
+      }
+    })
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].goal, "review provider templates");
 });
 
 async function captureStdout(fn) {
