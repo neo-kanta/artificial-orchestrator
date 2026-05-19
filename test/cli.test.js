@@ -243,6 +243,49 @@ test("tail uses the active project when no workspace or project is passed", asyn
   assert.match(output, /Active project inspected/);
 });
 
+test("status uses the active project and summarizes latest durable state", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "ao status-active-project-"));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const registryPath = join(dir, "projects.json");
+  const projectPath = join(dir, "active-project");
+  await mkdir(projectPath, { recursive: true });
+
+  await captureStdout(() =>
+    main(["project", "add", "alpha", "--path", projectPath, "--use", "--project-registry", registryPath])
+  );
+
+  await captureStdout(() =>
+    main(["run", "--project-registry", registryPath, "--goal", "inspect durable status"], {
+      callProvider: async () => ({
+        ok: true,
+        text: "Active project inspected.\n\nHandoff: archive latest session summary.\nDUET_STATUS: done",
+        usage: null,
+        costUsd: null,
+        limit: null,
+        errors: [],
+        stderr: "",
+        durationMs: 1
+      })
+    })
+  );
+
+  const output = await captureStdout(() => main(["status", "--project-registry", registryPath]));
+  assert.match(output, /Artificial Orchestrator Status/);
+  assert.match(output, /project: alpha/);
+  assert.match(output, /phase: done/);
+  assert.match(output, /final: done \(provider-reported-done\)/);
+  assert.match(output, /providers:/);
+  assert.match(output, /claude: ok/);
+  assert.match(output, /latest handoff: archive latest session summary\./);
+  assert.match(output, /transcript\.md/);
+
+  const json = JSON.parse(await captureStdout(() => main(["status", "--project-registry", registryPath, "--json"])));
+  assert.equal(json.status.project.name, "alpha");
+  assert.equal(json.status.phase, "done");
+  assert.equal(json.providerState.providers.claude.handoff, "archive latest session summary.");
+});
+
 test("providers doctor openai reports missing key without ping", async () => {
   const oldKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;

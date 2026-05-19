@@ -4,6 +4,7 @@ import { BUILT_IN_PROVIDERS, loadConfig, resolveProviders } from "./config.js";
 import { doctor } from "./doctor.js";
 import { runDuet } from "./orchestrator.js";
 import { publishPrivate } from "./publish.js";
+import { printLatestStatus } from "./status.js";
 import { tailLatest } from "./tail.js";
 import { addProject, currentProject, listProjects, resolveProjectContext, useProject } from "./projects.js";
 import { listOrgs, orgSummary, resolveOrg } from "./orgs.js";
@@ -108,6 +109,11 @@ export async function main(argv, deps = {}) {
     return;
   }
 
+  if (command === "status") {
+    await printLatestStatus(workspace, { json: Boolean(args.json) });
+    return;
+  }
+
   if (command === "tail") {
     await tailLatest(workspace);
     return;
@@ -131,6 +137,7 @@ Usage:
   ao project use <name>
   ao project current
   ao providers [--config <file>]
+  ao status [--project <name>] [--workspace <path>] [--json]
   ao tail [--project <name>] [--workspace <path>]
   ao publish --repo <private-repo-name>
 
@@ -140,6 +147,7 @@ Commands:
   org      List or run AI organizations such as software-team.
   project  Add, list, use, or show known workspaces.
   providers List built-in and configured AI providers.
+  status   Print the latest durable run status for a project or workspace.
   tail     Print the latest transcript for a project or workspace.
   publish  Create/push a private GitHub repo using gh auth.
 
@@ -164,6 +172,7 @@ Notes:
 
 function usesActiveProjectDefault(args, command) {
   if (command === "run") return true;
+  if (command === "status") return true;
   if (command === "tail") return true;
   if (command !== "org" && command !== "orgs") return false;
   return String(args._[1] ?? "").toLowerCase() === "run";

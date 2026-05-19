@@ -31,11 +31,15 @@ By default the registry is stored in the user config directory:
 
 Set `ARTIFICIAL_ORCHESTRATOR_HOME` or `AO_HOME` to move the registry. Tests and automation can also pass `--project-registry <path>`.
 
-## Watching Runs
+## Inspecting Runs
 
-`ao tail` uses the active project when no `--project` or `--workspace` is passed:
+`ao status` and `ao tail` use the active project when no `--project` or `--workspace` is passed.
+Use `status` for a compact durable-state summary and `tail` for the full transcript:
 
 ```powershell
+ao status
+ao status --project ims
+ao status --json
 ao tail
 ao tail --project ims
 ao tail --workspace C:\Users\kanta\source\repos\ims-th-solution

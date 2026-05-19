@@ -86,6 +86,14 @@ If a provider fails, hits a configured limit, or reports `DUET_STATUS: blocked`,
 If a provider reports structured `status: "done"` or text `DUET_STATUS: done` / `ORCHESTRATOR_STATUS: done`, the run records `phase: "done"` and stops without spending more provider calls.
 If the configured round limit is reached first, the run records `phase: "rounds_exhausted"` so automation can resume or inspect the handoff.
 
+Inspect the latest durable status for the active project:
+
+```powershell
+ao status
+ao status --project ims
+ao status --json
+```
+
 Watch the latest transcript for the active project:
 
 ```powershell
