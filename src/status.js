@@ -25,7 +25,7 @@ export async function latestStatus(workspace) {
 
   const [status, providerState, orgState] = await Promise.all([
     readJson(join(dir, "status.json")),
-    readJson(join(dir, "provider-state.json")),
+    readOptionalJson(join(dir, "provider-state.json")),
     readOptionalJson(join(dir, "org-state.json"))
   ]);
 
