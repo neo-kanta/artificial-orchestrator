@@ -55,8 +55,9 @@ export async function main(argv, deps = {}) {
     const goal = String(args.goal ?? args.g ?? args._.slice(1).join(" ")).trim();
     if (!goal) throw new Error("Missing goal. Example: ao run --goal \"finish the market data tests\"");
 
+    const runtimeForGoal = { ...runtime, goal };
     const org = args.org
-      ? resolveOrg({ config, orgName: String(args.org), runtime })
+      ? resolveOrg({ config, orgName: String(args.org), runtime: runtimeForGoal })
       : null;
     const providers = org
       ? []
@@ -65,7 +66,7 @@ export async function main(argv, deps = {}) {
           providerList: args.providers,
           codexOnly: Boolean(args.codexOnly),
           claudeOnly: Boolean(args.claudeOnly),
-          runtime
+          runtime: runtimeForGoal
         });
 
     await runDuet({
@@ -159,6 +160,8 @@ Key options:
   --providers <ids>       Comma-separated provider pipeline. Default: claude,codex.
   --org <name>            Run a built-in or configured AI organization.
   --openai-model <model>  Default: ${DEFAULT_OPENAI_MODEL}
+  --openai-reasoning <n>  Optional OpenAI reasoning effort.
+  --openai-max-output-tokens <n>  Override OpenAI max output tokens for one run.
   --project <name>        Run against a saved project.
   --config <file>         JSON config with custom command providers.
   --max-budget-usd <n>    Passed to Claude CLI when supported.
@@ -217,7 +220,7 @@ async function handleOrgCommand(args, config, runtime, context) {
     if (!orgName) throw new Error("Missing org name. Example: ao org run software-team --goal \"ship safely\"");
     const goal = String(args.goal ?? args.g ?? args._.slice(context.goalArgsStart).join(" ")).trim();
     if (!goal) throw new Error("Missing goal. Example: ao org run software-team --goal \"ship safely\"");
-    const org = resolveOrg({ config, orgName, runtime });
+    const org = resolveOrg({ config, orgName, runtime: { ...runtime, goal } });
 
     await runDuet({
       goal,

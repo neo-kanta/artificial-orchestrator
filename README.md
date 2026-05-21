@@ -139,7 +139,7 @@ Use OpenAI in a flat provider pipeline:
 ao run --providers openai,codex --goal "plan the next release"
 ```
 
-Configured OpenAI providers keep their configured model. Use `--openai-model <model>` only when you want a single run to override that setting.
+Configured OpenAI providers keep their configured model, reasoning effort, and output-token limit. Use `--openai-model <model>`, `--openai-reasoning <effort>`, or `--openai-max-output-tokens <n>` only when you want a single run to override those settings.
 
 ## AI Organizations
 
@@ -213,6 +213,8 @@ For token scope guidance, see [GitHub Token Permissions](docs/github-token-permi
 --rounds <n>            Number of collaboration rounds.
 --codex-model <model>   Defaults to gpt-5.4-mini for this machine.
 --claude-model <model>  Optional Claude model alias/name.
+--openai-reasoning <n>  Optional OpenAI reasoning effort.
+--openai-max-output-tokens <n>  Override OpenAI output tokens for one run.
 --max-budget-usd <n>    Passed to Claude CLI when supported.
 --claude-tools          Allow Claude tools. Default is no-tools architect/reviewer.
 ```

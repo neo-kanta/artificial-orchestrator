@@ -100,6 +100,7 @@ export function hydrateProvider(spec, runtime) {
   const provider = {
     ...spec,
     workspace: runtime.workspace,
+    goal: runtime.goal ?? spec.goal ?? "",
     timeoutMs: Number(spec.timeoutMs ?? runtime.timeoutMs)
   };
 
@@ -118,7 +119,7 @@ export function hydrateProvider(spec, runtime) {
   if (provider.kind === "openai") {
     provider.model = runtime.openaiModel ?? spec.model ?? "gpt-5.5";
     provider.reasoning = runtime.openaiReasoning ?? spec.reasoning ?? "medium";
-    provider.maxOutputTokens = Number(spec.maxOutputTokens ?? runtime.openaiMaxOutputTokens ?? 4096);
+    provider.maxOutputTokens = Number(runtime.openaiMaxOutputTokens ?? spec.maxOutputTokens ?? 4096);
     provider.responseFormat = spec.responseFormat ?? "json";
   }
 

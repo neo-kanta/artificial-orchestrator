@@ -71,6 +71,14 @@ The config shape is:
 - `env`: optional environment variables. Template values are supported.
 - `timeoutMs`: per-provider timeout.
 
+Command `args` and `env` templates can use:
+
+- `{{prompt}}` - the generated provider prompt.
+- `{{workspace}}` - the resolved project/workspace path.
+- `{{goal}}` - the exact goal passed to the run.
+- `{{id}}` - the provider or organization role id.
+- `{{role}}` - the provider role label.
+
 ## OpenAI Fields
 
 - `model`: OpenAI model id. Default: `gpt-5.5`.
@@ -79,7 +87,7 @@ The config shape is:
 - `maxOutputTokens`: passed to the Responses API as `max_output_tokens`.
 
 OpenAI credentials are read from `OPENAI_API_KEY`. Do not put secrets in provider config.
-Configured OpenAI providers keep their own `model` unless a run passes `--openai-model <model>` explicitly. Use that flag for one-off experiments; set `model` in config for stable provider roles.
+Configured OpenAI providers keep their own `model`, `reasoning`, and `maxOutputTokens` unless a run passes `--openai-model <model>`, `--openai-reasoning <effort>`, or `--openai-max-output-tokens <n>` explicitly. Use CLI overrides for one-off experiments; set the fields in config for stable provider roles.
 
 ## Maintainer Notes
 

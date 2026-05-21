@@ -23,6 +23,7 @@ test("resolves built-in and configured providers", () => {
     },
     runtime: {
       workspace: "C:/repo",
+      goal: "ship the provider slice",
       timeoutMs: 1000,
       codexModel: "gpt-test",
       apply: false,
@@ -32,6 +33,7 @@ test("resolves built-in and configured providers", () => {
 
   assert.equal(providers[0].id, "local-reviewer");
   assert.equal(providers[0].workspace, "C:/repo");
+  assert.equal(providers[0].goal, "ship the provider slice");
   assert.equal(providers[1].id, "codex");
   assert.equal(providers[1].model, "gpt-test");
 });
@@ -106,6 +108,29 @@ test("explicit runtime OpenAI model overrides configured providers", () => {
 
   assert.equal(provider.model, "gpt-runtime");
   assert.equal(provider.reasoning, "low");
+});
+
+test("explicit runtime OpenAI max output tokens override configured providers", () => {
+  const [provider] = resolveProviders({
+    config: {
+      providers: {
+        planner: {
+          id: "planner",
+          kind: "openai",
+          model: "gpt-planner",
+          maxOutputTokens: 99
+        }
+      }
+    },
+    providerList: "planner",
+    runtime: {
+      workspace: "C:/repo",
+      timeoutMs: 1000,
+      openaiMaxOutputTokens: 512
+    }
+  });
+
+  assert.equal(provider.maxOutputTokens, 512);
 });
 
 test("renders command provider templates", () => {
