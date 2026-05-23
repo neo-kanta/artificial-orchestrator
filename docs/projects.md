@@ -43,4 +43,7 @@ ao status --json
 ao tail
 ao tail --project ims
 ao tail --workspace C:\Users\kanta\source\repos\ims-th-solution
+ao tail --follow
 ```
+
+`ao tail --follow` prints the current transcript and keeps streaming appended provider turns until you stop it.
