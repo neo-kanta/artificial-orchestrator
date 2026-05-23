@@ -99,7 +99,10 @@ Watch the latest transcript for the active project:
 ```powershell
 ao tail
 ao tail --project ims
+ao tail --follow
 ```
+
+Use `--follow` to keep the command attached while a run is active; new transcript entries print as providers finish turns.
 
 ## Flexible Providers
 

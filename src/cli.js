@@ -115,7 +115,11 @@ export async function main(argv, deps = {}) {
   }
 
   if (command === "tail") {
-    await tailLatest(workspace);
+    await tailLatest(workspace, {
+      follow: Boolean(args.follow ?? args.f),
+      intervalMs: Number(args.intervalMs ?? 1000),
+      signal: deps.tailSignal
+    });
     return;
   }
 
@@ -138,7 +142,7 @@ Usage:
   ao project current
   ao providers [--config <file>]
   ao status [--project <name>] [--workspace <path>] [--json]
-  ao tail [--project <name>] [--workspace <path>]
+  ao tail [--project <name>] [--workspace <path>] [--follow]
   ao publish --repo <private-repo-name>
 
 Commands:
@@ -148,7 +152,7 @@ Commands:
   project  Add, list, use, or show known workspaces.
   providers List built-in and configured AI providers.
   status   Print the latest durable run status for a project or workspace.
-  tail     Print the latest transcript for a project or workspace.
+  tail     Print or follow the latest transcript for a project or workspace.
   publish  Create/push a private GitHub repo using gh auth.
 
 Key options:
@@ -160,6 +164,7 @@ Key options:
   --org <name>            Run a built-in or configured AI organization.
   --openai-model <model>  Default: ${DEFAULT_OPENAI_MODEL}
   --project <name>        Run against a saved project.
+  --follow                Keep tail attached and print transcript updates.
   --config <file>         JSON config with custom command providers.
   --max-budget-usd <n>    Passed to Claude CLI when supported.
   --claude-tools          Allow Claude tools. Default keeps Claude as no-tools architect/reviewer.

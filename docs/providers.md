@@ -91,7 +91,7 @@ Providers receive both recent transcript text and durable state before every tur
 - `provider-state.json` carries latest per-provider status, limits, usage, and handoff summaries.
 - `status.json` carries the durable run lifecycle with `phase` values such as `running`, `done`, `blocked`, and `rounds_exhausted`.
 
-Use `ao status`, `ao status --project <name>`, or `ao status --json` to inspect those durable files without printing the full transcript.
+Use `ao status`, `ao status --project <name>`, or `ao status --json` to inspect those durable files without printing the full transcript. Use `ao tail --follow` when you want to keep watching the active project's transcript as provider turns are appended.
 
 Adapters should keep their public output concise and include a short handoff for the next provider. Structured JSON providers should set top-level `status` and `handoff` strings; text providers should include a `Status:`/`DUET_STATUS:` line and a `Handoff:` line or section. Markdown headings such as `## Handoff` or `## Handoff for Codex` are accepted. The orchestrator keeps the full response in `transcript.md`, but persists only the extracted handoff in `handoff.md` and `provider-state.json` so later providers read focused state instead of stale full-turn output. The orchestrator persists that handoff even when a provider blocks on limits or credentials.
 Flat provider runs stop as soon as a provider fails, reports `DUET_STATUS: blocked`, or reports completion with `DUET_STATUS: done` / `ORCHESTRATOR_STATUS: done`; this avoids spending later provider calls after the durable state is already terminal.
