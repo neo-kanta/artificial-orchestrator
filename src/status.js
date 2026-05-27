@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readLatest } from "./logger.js";
+import { collectBlockers } from "./domain/run-status.js";
+import { compactLine } from "./shared/text.js";
 
 export async function printLatestStatus(workspace, options = {}) {
   const status = await latestStatus(workspace);
@@ -108,14 +110,6 @@ async function readOptionalJson(path) {
   }
 }
 
-function collectBlockers(status, final) {
-  const values = [
-    ...(Array.isArray(status.blockers) ? status.blockers : []),
-    ...(Array.isArray(final?.blockers) ? final.blockers : [])
-  ];
-  return [...new Set(values.map((value) => String(value?.blocker ?? value ?? "").trim()).filter(Boolean))];
-}
-
 function formatProviderLine(id, provider) {
   const state = provider.ok === false ? "blocked" : provider.ok === true ? "ok" : "unknown";
   const parts = [
@@ -126,12 +120,4 @@ function formatProviderLine(id, provider) {
   ].filter(Boolean);
 
   return parts.join(" | ");
-}
-
-function compactLine(value, maxChars) {
-  const text = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(0, maxChars - 15)).trim()}... [truncated]`;
 }

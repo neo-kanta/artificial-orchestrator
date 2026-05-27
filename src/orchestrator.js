@@ -1,10 +1,11 @@
-import { stat } from "node:fs/promises";
 import { appendTurn, createSession, finalizeSession, readOrgContext, readProviderContext } from "./logger.js";
 import { callProvider } from "./providers.js";
 import { usageLine } from "./parsers.js";
 import { providerPrompt } from "./prompts.js";
 import { workspaceSnapshot } from "./snapshot.js";
 import { color } from "./ansi.js";
+import { assertWorkspaceDirectory } from "./shared/workspace.js";
+import { providerStatusFromResult, reportedStatus, structuredStatus, terminalBlockers } from "./domain/run-status.js";
 
 export async function runDuet(options) {
   await assertWorkspaceDirectory(options.workspace);
@@ -70,16 +71,6 @@ export async function runDuet(options) {
   return session;
 }
 
-async function assertWorkspaceDirectory(workspace) {
-  try {
-    const info = await stat(workspace);
-    if (!info.isDirectory()) throw new Error(`Workspace is not a directory: ${workspace}`);
-  } catch (error) {
-    if (error.code === "ENOENT") throw new Error(`Workspace does not exist: ${workspace}`);
-    throw error;
-  }
-}
-
 async function runProviderTurn({ session, round, provider, fn, history }) {
   process.stdout.write(color("cyan", `[round ${round}] ${provider.id} thinking... `));
   const result = await fn();
@@ -132,12 +123,7 @@ function compactHistory(history, maxChars) {
 }
 
 function orgStatus(result) {
-  const value = structuredStatus(result.structured?.status);
-  if (value) return value;
-
-  const match = String(result.text ?? "").match(/\bStatus:\s*(done|blocked|continue)\b/i);
-  if (match) return match[1].toLowerCase();
-  return result.ok ? "continue" : "blocked";
+  return providerStatusFromResult(result);
 }
 
 function orgBlockers(result) {
@@ -191,32 +177,6 @@ function orgTerminalStatus(org, turn) {
   };
 }
 
-function reportedStatus(text) {
-  const match = String(text ?? "").match(/\b(?:DUET_STATUS|ORCHESTRATOR_STATUS|Status):\s*(done|blocked|continue)\b/i);
-  return match ? match[1].toLowerCase() : null;
-}
-
-function structuredStatus(value) {
-  const status = String(value ?? "").toLowerCase();
-  if (status === "done" || status === "blocked" || status === "continue") return status;
-  return null;
-}
-
-function terminalBlockers(turn) {
-  const values = [
-    ...(Array.isArray(turn.blockers) ? turn.blockers : []),
-    ...(Array.isArray(turn.errors) ? turn.errors : []),
-    turn.limit ? `Provider limit reset: ${turn.limit.reset}` : null,
-    turn.stderr,
-    turn.text
-  ];
-
-  return values
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean)
-    .map((value) => compactText(value, 500));
-}
-
 function shouldStopOrg(org, status) {
   const done = org.stopConditions?.doneStatuses ?? ["done"];
   const blocked = org.stopConditions?.blockedStatuses ?? ["blocked"];
@@ -227,10 +187,4 @@ function printSessionFiles(session) {
   console.log(`\nTranscript: ${session.dir}\\transcript.md`);
   console.log(`Status: ${session.dir}\\status.json`);
   console.log(`Machine log: ${session.dir}\\events.ndjson`);
-}
-
-function compactText(text, maxChars) {
-  const normalized = String(text ?? "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxChars - 80)).trim()}\n\n[truncated: ${normalized.length - maxChars} chars omitted]`;
 }

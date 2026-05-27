@@ -10,6 +10,7 @@ import { addProject, currentProject, listProjects, resolveProjectContext, usePro
 import { listOrgs, orgSummary, resolveOrg } from "./orgs.js";
 import { callProvider as defaultCallProvider } from "./providers.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_OPENAI_MODEL, runtimeOptions } from "./runtime.js";
+import { prepareRunOptions } from "./application/run-options.js";
 
 export async function main(argv, deps = {}) {
   const args = parseArgs(argv);
@@ -50,31 +51,19 @@ export async function main(argv, deps = {}) {
   }
 
   if (command === "run") {
-    const goal = String(args.goal ?? args.g ?? args._.slice(1).join(" ")).trim();
-    if (!goal) throw new Error("Missing goal. Example: ao run --goal \"finish the market data tests\"");
-
-    const org = args.org
-      ? resolveOrg({ config, orgName: String(args.org), runtime })
-      : null;
-    const providers = org
-      ? []
-      : resolveProviders({
-          config,
-          providerList: args.providers,
-          codexOnly: Boolean(args.codexOnly),
-          claudeOnly: Boolean(args.claudeOnly),
-          runtime
-        });
+    const runOptions = await prepareRunOptions({
+      ...args,
+      goal: args.goal ?? args.g ?? args._.slice(1).join(" "),
+      orgName: args.org,
+      projectContext,
+      config,
+      runtime,
+      rounds: args.rounds ?? args.r,
+      historyChars: args.historyChars
+    });
 
     await runDuet({
-      goal,
-      workspace,
-      project: projectContext,
-      org,
-      rounds: Number(args.rounds ?? args.r ?? 2),
-      apply: Boolean(args.apply),
-      historyChars: Number(args.historyChars ?? 12000),
-      providers,
+      ...runOptions,
       callProvider
     });
     return;
@@ -202,19 +191,19 @@ async function handleOrgCommand(args, config, runtime, context) {
   if (action === "run") {
     const orgName = String(args._[2] ?? "");
     if (!orgName) throw new Error("Missing org name. Example: ao org run software-team --goal \"ship safely\"");
-    const goal = String(args.goal ?? args.g ?? args._.slice(context.goalArgsStart).join(" ")).trim();
-    if (!goal) throw new Error("Missing goal. Example: ao org run software-team --goal \"ship safely\"");
-    const org = resolveOrg({ config, orgName, runtime });
+    const runOptions = await prepareRunOptions({
+      ...args,
+      goal: args.goal ?? args.g ?? args._.slice(context.goalArgsStart).join(" "),
+      orgName,
+      projectContext: context.projectContext,
+      config,
+      runtime,
+      rounds: args.rounds ?? args.r ?? 1,
+      historyChars: args.historyChars
+    });
 
     await runDuet({
-      goal,
-      workspace: context.workspace,
-      project: context.projectContext,
-      org,
-      providers: [],
-      rounds: Number(args.rounds ?? args.r ?? 1),
-      apply: Boolean(args.apply),
-      historyChars: Number(args.historyChars ?? 12000),
+      ...runOptions,
       callProvider: context.callProvider
     });
     return;
