@@ -19,6 +19,25 @@ node .\bin\duet.js doctor
 
 After linking you can use either `ao`, `artificial-orchestrator`, or the backward-compatible `duet` alias.
 
+## Desktop GUI
+
+Run the Electron desktop shell:
+
+```powershell
+npm run desktop
+```
+
+The app uses the same project registry, provider configuration, organization presets, orchestration engine, and durable run files as the CLI. From the desktop app you can:
+
+- See the active project and workspace path.
+- Add, list, and switch projects.
+- Enter a goal, choose a provider pipeline or organization preset, set rounds, and toggle apply or unsafe mode.
+- Start a run for the selected project.
+- Watch the latest transcript and phase updates while the run is active.
+- Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.
+
+The desktop shell does not display provider secrets or bypass provider authentication, quota, payment, approval, or usage limits. Provider blockers are shown in the monitor and persisted in the same session files as CLI runs.
+
 ## Projects
 
 Register the workspaces you want Artificial Orchestrator to remember:
