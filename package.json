@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node ./bin/duet.js",
+    "desktop": "electron ./desktop/main.js",
     "test": "node --test --test-isolation=none",
     "doctor": "node ./bin/duet.js doctor"
   },
@@ -24,5 +25,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0"
   }
 }

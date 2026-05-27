@@ -9,9 +9,7 @@ import { tailLatest } from "./tail.js";
 import { addProject, currentProject, listProjects, resolveProjectContext, useProject } from "./projects.js";
 import { listOrgs, orgSummary, resolveOrg } from "./orgs.js";
 import { callProvider as defaultCallProvider } from "./providers.js";
-
-const DEFAULT_CODEX_MODEL = "gpt-5.4-mini";
-const DEFAULT_OPENAI_MODEL = "gpt-5.5";
+import { DEFAULT_CODEX_MODEL, DEFAULT_OPENAI_MODEL, runtimeOptions } from "./runtime.js";
 
 export async function main(argv, deps = {}) {
   const args = parseArgs(argv);
@@ -181,22 +179,6 @@ function usesActiveProjectDefault(args, command) {
   if (command === "tail") return true;
   if (command !== "org" && command !== "orgs") return false;
   return String(args._[1] ?? "").toLowerCase() === "run";
-}
-
-function runtimeOptions(args, workspace) {
-  return {
-    workspace,
-    timeoutMs: Number(args.timeoutMs ?? 15 * 60 * 1000),
-    apply: Boolean(args.apply),
-    unsafe: Boolean(args.unsafe),
-    codexModel: String(args.codexModel ?? DEFAULT_CODEX_MODEL),
-    claudeModel: args.claudeModel ? String(args.claudeModel) : undefined,
-    openaiModel: args.openaiModel !== undefined ? String(args.openaiModel) : undefined,
-    openaiReasoning: args.openaiReasoning ? String(args.openaiReasoning) : undefined,
-    openaiMaxOutputTokens: args.openaiMaxOutputTokens ? Number(args.openaiMaxOutputTokens) : undefined,
-    maxBudgetUsd: args.maxBudgetUsd ?? undefined,
-    claudeTools: Boolean(args.claudeTools)
-  };
 }
 
 async function handleOrgCommand(args, config, runtime, context) {

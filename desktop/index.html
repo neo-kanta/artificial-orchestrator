@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';"
+    />
+    <title>Artificial Orchestrator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail">
+        <header class="brand">
+          <div class="brand-mark">AO</div>
+          <div>
+            <h1>Artificial Orchestrator</h1>
+            <p id="active-project-label">No active project</p>
+          </div>
+        </header>
+
+        <section class="project-panel">
+          <div class="section-heading">
+            <h2>Projects</h2>
+            <button id="refresh-button" class="ghost-button" type="button">Refresh</button>
+          </div>
+          <div id="project-list" class="project-list"></div>
+        </section>
+
+        <form id="project-form" class="project-form">
+          <label>
+            Name
+            <input id="project-name" autocomplete="off" placeholder="project-name" />
+          </label>
+          <label>
+            Path
+            <div class="path-input">
+              <input id="project-path" autocomplete="off" placeholder="C:\\path\\to\\repo" />
+              <button id="browse-button" class="ghost-button" type="button">Browse</button>
+            </div>
+          </label>
+          <button class="primary-button" type="submit">Add project</button>
+        </form>
+      </aside>
+
+      <main class="workspace">
+        <section class="launcher">
+          <div class="launcher-head">
+            <div>
+              <p class="eyebrow">Run launcher</p>
+              <h2 id="workspace-title">Select a project</h2>
+            </div>
+            <div id="phase-badge" class="phase-badge phase-idle">idle</div>
+          </div>
+
+          <label class="goal-label">
+            Goal
+            <textarea id="goal-input" rows="5" placeholder="Describe the outcome to orchestrate"></textarea>
+          </label>
+
+          <div class="launch-grid">
+            <label>
+              Organization
+              <select id="org-select">
+                <option value="">Provider pipeline</option>
+              </select>
+            </label>
+            <label>
+              Rounds
+              <input id="rounds-input" type="number" min="1" max="20" value="2" />
+            </label>
+          </div>
+
+          <div>
+            <div class="field-label">Providers</div>
+            <div id="provider-list" class="provider-list"></div>
+          </div>
+
+          <div class="toggle-row">
+            <label><input id="apply-toggle" type="checkbox" /> Apply changes</label>
+            <label><input id="unsafe-toggle" type="checkbox" /> Unsafe mode</label>
+          </div>
+
+          <div class="launch-actions">
+            <button id="start-button" class="primary-button" type="button">Start run</button>
+            <p id="validation-message" class="validation-message"></p>
+          </div>
+        </section>
+
+        <section class="monitor">
+          <div class="monitor-head">
+            <div>
+              <p class="eyebrow">Live monitor</p>
+              <h2 id="monitor-title">No durable run loaded</h2>
+            </div>
+            <div id="run-times" class="run-times"></div>
+          </div>
+          <pre id="transcript-view" class="transcript-view"></pre>
+        </section>
+      </main>
+
+      <aside class="inspector">
+        <section>
+          <p class="eyebrow">Provider state</p>
+          <div id="provider-state" class="state-list"></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Latest handoff</p>
+          <pre id="handoff-view" class="handoff-view"></pre>
+        </section>
+
+        <section>
+          <p class="eyebrow">Blockers</p>
+          <div id="blocker-list" class="blocker-list"></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Run files</p>
+          <div id="file-list" class="file-list"></div>
+        </section>
+      </aside>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
