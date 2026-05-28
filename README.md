@@ -31,7 +31,9 @@ The app uses the same project registry, provider configuration, organization pre
 
 - See the active project and workspace path.
 - Add, list, and switch projects.
-- Enter a goal, choose a provider pipeline or organization preset, set rounds, and toggle apply or unsafe mode.
+- Enter a goal, choose a provider pipeline or organization preset, and set rounds.
+- Visualize an organization preset as role nodes with animated handoff paths between agents.
+- Choose explicit run permissions: plan-only, workspace edit, trusted full access, and Claude tools.
 - Start a run for the selected project.
 - Watch the latest transcript and phase updates while the run is active.
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.

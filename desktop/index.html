@@ -73,15 +73,45 @@
             </label>
           </div>
 
+          <section class="org-map-panel" aria-label="Organization structure">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Organization structure</p>
+                <h3 id="org-map-title">Provider pipeline</h3>
+              </div>
+              <p id="org-map-meta" class="org-map-meta">Select an organization preset</p>
+            </div>
+            <div id="org-graph" class="org-graph"></div>
+          </section>
+
           <div>
             <div class="field-label">Providers</div>
             <div id="provider-list" class="provider-list"></div>
           </div>
 
-          <div class="toggle-row">
-            <label><input id="apply-toggle" type="checkbox" /> Apply changes</label>
-            <label><input id="unsafe-toggle" type="checkbox" /> Unsafe mode</label>
-          </div>
+          <section class="permission-panel" aria-label="Run permissions">
+            <div>
+              <p class="eyebrow">Run permissions</p>
+              <div class="permission-grid">
+                <label class="permission-choice">
+                  <input id="permission-plan" name="permission-policy" type="radio" value="plan" checked />
+                  <span>Plan only</span>
+                  <small>No workspace edits.</small>
+                </label>
+                <label class="permission-choice">
+                  <input id="permission-workspace" name="permission-policy" type="radio" value="workspace" />
+                  <span>Edit workspace</span>
+                  <small>Codex may write inside the project.</small>
+                </label>
+                <label class="permission-choice permission-danger">
+                  <input id="permission-trusted" name="permission-policy" type="radio" value="trusted" />
+                  <span>Trusted full access</span>
+                  <small>Explicit unsafe mode for trusted worktrees.</small>
+                </label>
+              </div>
+            </div>
+            <label class="tool-permission"><input id="claude-tools-toggle" type="checkbox" /> Allow Claude tools</label>
+          </section>
 
           <div class="launch-actions">
             <button id="start-button" class="primary-button" type="button">Start run</button>

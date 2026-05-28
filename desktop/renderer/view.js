@@ -67,6 +67,66 @@ export function renderProviderDisabledState(elements) {
   }
 }
 
+export function renderOrgMap(elements, org, selectedProviderIds, providers, activeRole = null) {
+  const graph = org ? orgGraphFromPreset(org) : graphFromProviders(selectedProviderIds, providers);
+  elements.orgMapTitle.textContent = graph.title;
+  elements.orgMapMeta.textContent = graph.meta;
+  elements.orgGraph.replaceChildren();
+
+  const nodeGrid = document.createElement("div");
+  nodeGrid.className = "org-role-grid";
+  for (const role of graph.roles) {
+    const node = document.createElement("article");
+    node.className = `org-role-node ${role.id === activeRole ? "active" : ""}`;
+    node.dataset.role = role.id;
+
+    const provider = document.createElement("span");
+    provider.className = "org-role-provider";
+    provider.textContent = role.provider;
+    const label = document.createElement("strong");
+    label.textContent = role.label;
+    const responsibility = document.createElement("small");
+    responsibility.textContent = role.responsibility || "Receives handoff and contributes to the run.";
+
+    node.append(provider, label, responsibility);
+    nodeGrid.append(node);
+  }
+
+  const flow = document.createElement("div");
+  flow.className = "communication-flow";
+  for (const [index, edge] of graph.edges.entries()) {
+    const row = document.createElement("div");
+    row.className = "communication-edge";
+    row.style.setProperty("--edge-delay", `${index * 180}ms`);
+    row.dataset.from = edge.from;
+    row.dataset.to = edge.to;
+
+    const from = document.createElement("span");
+    from.textContent = edge.from;
+    const line = document.createElement("span");
+    line.className = "edge-line";
+    const pulse = document.createElement("span");
+    pulse.className = "edge-pulse";
+    line.append(pulse);
+    const to = document.createElement("span");
+    to.textContent = edge.to;
+
+    row.append(from, line, to);
+    flow.append(row);
+  }
+
+  elements.orgGraph.append(nodeGrid, flow);
+}
+
+export function updateOrgActivity(elements, activeRole) {
+  for (const node of elements.orgGraph.querySelectorAll(".org-role-node")) {
+    node.classList.toggle("active", Boolean(activeRole) && node.dataset.role === activeRole);
+  }
+  for (const edge of elements.orgGraph.querySelectorAll(".communication-edge")) {
+    edge.classList.toggle("active", Boolean(activeRole) && edge.dataset.to === activeRole);
+  }
+}
+
 export function renderRun(elements, run, openPath) {
   const phase = run?.phase ?? "idle";
   elements.phaseBadge.textContent = phase;
@@ -79,6 +139,7 @@ export function renderRun(elements, run, openPath) {
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
   renderFiles(elements, run?.files ?? {}, openPath);
+  updateOrgActivity(elements, run?.activeRole ?? null);
 }
 
 export function selectedProject(projects, selectedProjectName, activeProject = null) {
@@ -90,13 +151,16 @@ export function checkedProviderIds(elements) {
 }
 
 export function launchInput(elements) {
+  const permissionPolicy = selectedPermissionPolicy(elements);
   return {
     goal: elements.goalInput.value.trim(),
     orgName: elements.orgSelect.value,
     providerIds: checkedProviderIds(elements),
     rounds: Number(elements.roundsInput.value),
-    apply: elements.applyToggle.checked,
-    unsafe: elements.unsafeToggle.checked
+    permissionPolicy,
+    apply: permissionPolicy === "workspace" || permissionPolicy === "trusted",
+    unsafe: permissionPolicy === "trusted",
+    claudeTools: elements.claudeToolsToggle.checked
   };
 }
 
@@ -174,6 +238,45 @@ function renderFiles(elements, files, openPath) {
     row.append(button, text);
     elements.fileList.append(row);
   }
+}
+
+function orgGraphFromPreset(org) {
+  return {
+    title: org.label,
+    meta: `${org.roles.length} roles | ${org.edges.length} handoff paths`,
+    roles: org.roles,
+    edges: org.edges
+  };
+}
+
+function graphFromProviders(selectedProviderIds, providers) {
+  const selected = selectedProviderIds.length > 0 ? selectedProviderIds : ["claude", "codex"];
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]));
+  const roles = selected.map((id) => {
+    const provider = providerById.get(id) ?? { id, label: id, kind: "provider", role: "provider" };
+    return {
+      id,
+      label: provider.label,
+      provider: provider.kind,
+      responsibility: provider.role
+    };
+  });
+  return {
+    title: "Provider pipeline",
+    meta: `${roles.length} providers | ${Math.max(0, roles.length - 1)} handoff paths`,
+    roles,
+    edges: roles.slice(0, -1).map((role, index) => ({
+      from: role.id,
+      to: roles[index + 1].id,
+      label: `${role.id} -> ${roles[index + 1].id}`
+    }))
+  };
+}
+
+function selectedPermissionPolicy(elements) {
+  if (elements.permissionTrusted.checked) return "trusted";
+  if (elements.permissionWorkspace.checked) return "workspace";
+  return "plan";
 }
 
 function selectProject(projects, selectedProjectName) {

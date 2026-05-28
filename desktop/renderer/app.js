@@ -4,6 +4,7 @@ import {
   clearProjectForm,
   launchInput,
   renderLauncher,
+  renderOrgMap,
   renderOrgChoices,
   renderProjects,
   renderProviderChoices,
@@ -26,6 +27,7 @@ if (api) {
   refreshState();
   polling = setInterval(refreshLiveState, 2000);
 } else {
+  renderOrgMap(elements, null, ["claude", "codex"], []);
   elements.startButton.disabled = true;
   setMessage(elements, "Desktop bridge unavailable.", true);
 }
@@ -34,7 +36,11 @@ function bindEvents() {
   elements.refreshButton.addEventListener("click", () => refreshState());
   elements.browseButton.addEventListener("click", chooseProjectPath);
   elements.projectForm.addEventListener("submit", addProject);
-  elements.orgSelect.addEventListener("change", () => renderProviderDisabledState(elements));
+  elements.orgSelect.addEventListener("change", () => {
+    renderProviderDisabledState(elements);
+    renderCurrentOrgMap();
+  });
+  elements.providerList.addEventListener("change", renderCurrentOrgMap);
   elements.startButton.addEventListener("click", startRun);
 }
 
@@ -47,6 +53,7 @@ async function refreshState() {
   renderLauncher(elements, activeProject());
   renderProviderChoices(elements, currentState.providers, checkedProviderIds(elements));
   renderOrgChoices(elements, currentState.orgs);
+  renderCurrentOrgMap();
   renderRun(elements, currentState.run, openPath);
 
   currentWorkspace = activeProject()?.path ?? currentState.workspace;
@@ -64,7 +71,10 @@ async function refreshLiveState() {
 
   try {
     const snapshot = await api.snapshot({ workspace: currentWorkspace });
-    if (snapshot) renderRun(elements, snapshot, openPath);
+    if (snapshot) {
+      if (currentState) currentState.run = snapshot;
+      renderRun(elements, snapshot, openPath);
+    }
   } catch (error) {
     if (processState.lastRunError) setMessage(elements, processState.lastRunError.message, true);
   }
@@ -127,6 +137,14 @@ async function openPath(path) {
 
 function activeProject() {
   return selectedProject(currentState?.projects ?? [], selectedProjectName, currentState?.activeProject ?? null);
+}
+
+function activeOrg() {
+  return currentState?.orgs.find((org) => org.id === elements.orgSelect.value) ?? null;
+}
+
+function renderCurrentOrgMap() {
+  renderOrgMap(elements, activeOrg(), checkedProviderIds(elements), currentState?.providers ?? [], currentState?.run?.activeRole ?? null);
 }
 
 window.addEventListener("beforeunload", () => {
