@@ -40,6 +40,21 @@ test("gui state exposes projects and sanitized provider choices", async (t) => {
   const state = await guiState({ registryPath });
   assert.equal(state.activeProject.name, "demo");
   assert.equal(state.workspace, resolve(workspace));
+  const softwareTeam = state.orgs.find((org) => org.id === "software-team");
+  assert.ok(softwareTeam);
+  assert.deepEqual(
+    softwareTeam.roles.slice(0, 3).map((role) => [role.id, role.provider]),
+    [
+      ["manager", "openai"],
+      ["architect", "openai"],
+      ["builder-claude", "claude"]
+    ]
+  );
+  assert.deepEqual(softwareTeam.edges[0], {
+    from: "manager",
+    to: "architect",
+    label: "manager -> architect"
+  });
 
   const local = state.providers.find((provider) => provider.id === "local");
   assert.deepEqual(local, {
@@ -69,7 +84,8 @@ test("gui run options validate launch input and reuse provider resolution", asyn
     providerIds: ["codex"],
     rounds: 3,
     apply: true,
-    unsafe: true
+    unsafe: true,
+    claudeTools: true
   });
 
   assert.equal(options.workspace, resolve(workspace));
@@ -79,6 +95,15 @@ test("gui run options validate launch input and reuse provider resolution", asyn
   assert.deepEqual(options.providers.map((provider) => provider.id), ["codex"]);
   assert.equal(options.providers[0].apply, true);
   assert.equal(options.providers[0].unsafe, true);
+
+  const claudeOptions = await createGuiRunOptions({
+    registryPath,
+    projectName: "demo",
+    goal: "review the workspace",
+    providerIds: ["claude"],
+    claudeTools: true
+  });
+  assert.equal(claudeOptions.providers[0].allowTools, true);
 
   await assert.rejects(
     () => createGuiRunOptions({ registryPath, projectName: "demo", goal: "", rounds: 1 }),

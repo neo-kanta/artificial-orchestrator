@@ -68,6 +68,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
     final,
     blockers: collectBlockers(run.status, final),
     providers: publicProviderState(run.status, run.providerState),
+    activeRole: run.providerState?.handoffs?.at(-1)?.provider ?? final?.provider ?? null,
     latestHandoff: run.providerState?.handoffs?.at(-1)?.handoff ?? "",
     files: run.files,
     transcript,
@@ -94,8 +95,39 @@ function publicOrgs(orgs) {
     id: org.id,
     label: org.label ?? org.id,
     description: org.description ?? "",
-    pipeline: org.pipeline ?? []
+    pipeline: org.pipeline ?? [],
+    roles: publicOrgRoles(org),
+    edges: publicOrgEdges(org)
   }));
+}
+
+function publicOrgRoles(org) {
+  const roles = org.roles ?? {};
+  const pipeline = Array.isArray(org.pipeline) && org.pipeline.length ? org.pipeline : Object.keys(roles);
+  return pipeline.map((roleName) => {
+    const role = roles[roleName] ?? {};
+    return {
+      id: roleName,
+      label: role.label ?? titleCase(roleName),
+      provider: role.provider ?? "unknown",
+      responsibility: role.responsibility ?? ""
+    };
+  });
+}
+
+function publicOrgEdges(org) {
+  const pipeline = Array.isArray(org.pipeline) && org.pipeline.length ? org.pipeline : Object.keys(org.roles ?? {});
+  return pipeline.slice(0, -1).map((from, index) => ({
+    from,
+    to: pipeline[index + 1],
+    label: `${from} -> ${pipeline[index + 1]}`
+  }));
+}
+
+function titleCase(value) {
+  return String(value)
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function optionalLatestSnapshot(workspace, options) {
