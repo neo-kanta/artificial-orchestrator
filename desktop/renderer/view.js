@@ -67,8 +67,18 @@ export function renderProviderDisabledState(elements) {
   }
 }
 
-export function renderOrgMap(elements, org, selectedProviderIds, providers, activeRole = null) {
+const ROLE_STATUS_CLASSES = [
+  "role-status-pending",
+  "role-status-running",
+  "role-status-continue",
+  "role-status-done",
+  "role-status-blocked",
+  "role-status-unknown"
+];
+
+export function renderOrgMap(elements, org, selectedProviderIds, providers, runtimeState = null, activeRole = null) {
   const graph = org ? orgGraphFromPreset(org) : graphFromProviders(selectedProviderIds, providers);
+  const roleStates = roleStateMap(runtimeState);
   elements.orgMapTitle.textContent = graph.title;
   elements.orgMapMeta.textContent = graph.meta;
   elements.orgGraph.replaceChildren();
@@ -77,18 +87,32 @@ export function renderOrgMap(elements, org, selectedProviderIds, providers, acti
   nodeGrid.className = "org-role-grid";
   for (const role of graph.roles) {
     const node = document.createElement("article");
-    node.className = `org-role-node ${role.id === activeRole ? "active" : ""}`;
+    node.className = "org-role-node";
     node.dataset.role = role.id;
 
+    const header = document.createElement("div");
+    header.className = "org-role-header";
     const provider = document.createElement("span");
     provider.className = "org-role-provider";
     provider.textContent = role.provider;
+    const status = document.createElement("span");
+    status.className = "org-status-badge";
+    status.dataset.roleStatus = "";
+    header.append(provider, status);
+
     const label = document.createElement("strong");
     label.textContent = role.label;
     const responsibility = document.createElement("small");
     responsibility.textContent = role.responsibility || "Receives handoff and contributes to the run.";
+    const runtime = document.createElement("small");
+    runtime.className = "org-role-runtime";
+    runtime.dataset.roleRuntime = "";
+    const blocker = document.createElement("small");
+    blocker.className = "org-role-blocker";
+    blocker.dataset.roleBlocker = "";
 
-    node.append(provider, label, responsibility);
+    node.append(header, label, responsibility, runtime, blocker);
+    setRoleRuntime(node, roleStates.get(role.id), role.id === activeRole);
     nodeGrid.append(node);
   }
 
@@ -112,18 +136,20 @@ export function renderOrgMap(elements, org, selectedProviderIds, providers, acti
     to.textContent = edge.to;
 
     row.append(from, line, to);
+    setEdgeRuntime(row, roleStates, activeRole);
     flow.append(row);
   }
 
   elements.orgGraph.append(nodeGrid, flow);
 }
 
-export function updateOrgActivity(elements, activeRole) {
+export function updateOrgActivity(elements, activeRole, runtimeState = null) {
+  const roleStates = roleStateMap(runtimeState);
   for (const node of elements.orgGraph.querySelectorAll(".org-role-node")) {
-    node.classList.toggle("active", Boolean(activeRole) && node.dataset.role === activeRole);
+    setRoleRuntime(node, roleStates.get(node.dataset.role), Boolean(activeRole) && node.dataset.role === activeRole);
   }
   for (const edge of elements.orgGraph.querySelectorAll(".communication-edge")) {
-    edge.classList.toggle("active", Boolean(activeRole) && edge.dataset.to === activeRole);
+    setEdgeRuntime(edge, roleStates, activeRole);
   }
 }
 
@@ -139,7 +165,7 @@ export function renderRun(elements, run, openPath) {
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
   renderFiles(elements, run?.files ?? {}, openPath);
-  updateOrgActivity(elements, run?.activeRole ?? null);
+  updateOrgActivity(elements, run?.activeRole ?? null, run?.org ?? null);
 }
 
 export function selectedProject(projects, selectedProjectName, activeProject = null) {
@@ -277,6 +303,78 @@ function selectedPermissionPolicy(elements) {
   if (elements.permissionTrusted.checked) return "trusted";
   if (elements.permissionWorkspace.checked) return "workspace";
   return "plan";
+}
+
+function roleStateMap(runtimeState) {
+  return new Map((runtimeState?.roles ?? []).map((role) => [role.id, role]));
+}
+
+function setRoleRuntime(node, roleState, isActive) {
+  const runtime = roleRuntime(roleState, isActive);
+  node.classList.remove("active", ...ROLE_STATUS_CLASSES);
+  node.classList.add(`role-status-${runtime.status}`);
+  node.classList.toggle("active", isActive);
+  node.dataset.status = runtime.status;
+
+  const badge = node.querySelector("[data-role-status]");
+  if (badge) {
+    badge.className = `org-status-badge role-status-${runtime.status}`;
+    badge.textContent = runtime.label;
+  }
+
+  const runtimeLine = node.querySelector("[data-role-runtime]");
+  if (runtimeLine) runtimeLine.textContent = runtime.meta;
+
+  const blockerLine = node.querySelector("[data-role-blocker]");
+  if (blockerLine) {
+    blockerLine.textContent = runtime.blocker;
+    blockerLine.hidden = !runtime.blocker;
+  }
+}
+
+function setEdgeRuntime(edge, roleStates, activeRole) {
+  const fromState = roleStates.get(edge.dataset.from);
+  const active = Boolean(activeRole) && edge.dataset.to === activeRole;
+  const complete = roleHasRun(fromState);
+  edge.classList.toggle("active", active);
+  edge.classList.toggle("complete", complete);
+}
+
+function roleRuntime(roleState, isActive) {
+  const rawStatus = normalizeRoleStatus(roleState?.status ?? (roleState ? "unknown" : "pending"));
+  const status = isActive && rawStatus === "pending" ? "running" : rawStatus;
+  const round = roleState?.lastRound ? `round ${roleState.lastRound}` : null;
+  const blocker = roleState?.blockers?.[0] ?? "";
+  return {
+    status,
+    label: statusLabel(status),
+    meta: roleMeta(status, round),
+    blocker
+  };
+}
+
+function roleMeta(status, round) {
+  if (round && status === "blocked") return `blocked at ${round}`;
+  if (round && status === "done") return `finished at ${round}`;
+  if (round && status === "continue") return `completed ${round}`;
+  if (round) return round;
+  if (status === "running") return "active handoff";
+  if (status === "pending") return "waiting for turn";
+  return "state unavailable";
+}
+
+function roleHasRun(roleState) {
+  return Boolean(roleState?.lastRound) || ["continue", "done", "blocked"].includes(roleState?.status);
+}
+
+function normalizeRoleStatus(status) {
+  const value = String(status ?? "unknown").toLowerCase().replace(/_/g, "-");
+  if (["pending", "running", "continue", "done", "blocked"].includes(value)) return value;
+  return "unknown";
+}
+
+function statusLabel(status) {
+  return status === "continue" ? "continue" : status;
 }
 
 function selectProject(projects, selectedProjectName) {

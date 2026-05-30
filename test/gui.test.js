@@ -167,3 +167,81 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.deepEqual(snapshot.blockers, ["missing credentials"]);
   assert.equal(snapshot.files.transcript, join(session.dir, "transcript.md"));
 });
+
+test("gui run snapshot exposes sanitized organization role progress", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-org-snapshot-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  const session = await createSession(workspace, "coordinate the release", {
+    project: { name: "release", path: resolve(workspace), source: "named" },
+    org: { id: "software-team", label: "Software Team", pipeline: ["manager", "reviewer", "docs"] }
+  });
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "manager",
+    providerId: "openai",
+    providerKind: "openai",
+    role: "manager",
+    orgStatus: "continue",
+    blockers: [],
+    ok: true,
+    text: "Internal manager summary should stay out of the public org projection.\n\nStatus: continue\n\nHandoff: reviewer should inspect the release.",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "reviewer",
+    providerId: "claude",
+    providerKind: "claude",
+    role: "reviewer",
+    orgStatus: "blocked",
+    blockers: ["missing approval"],
+    ok: true,
+    text: "Reviewer details should stay in the transcript.\n\nStatus: blocked\n\nHandoff: wait for approval.",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+
+  await finalizeSession(session, {
+    status: "blocked",
+    reason: "organization-blocked",
+    provider: "reviewer",
+    round: 1,
+    blockers: ["missing approval"]
+  });
+
+  const snapshot = await guiRunSnapshot(workspace);
+  assert.equal(snapshot.phase, "blocked");
+  assert.equal(snapshot.activeRole, "reviewer");
+  assert.equal(snapshot.org.id, "software-team");
+  assert.equal(snapshot.org.phase, "blocked");
+  assert.deepEqual(
+    snapshot.org.roles.map((role) => [role.id, role.status, role.lastRound]),
+    [
+      ["manager", "continue", 1],
+      ["reviewer", "blocked", 1],
+      ["docs", "pending", null]
+    ]
+  );
+  assert.deepEqual(snapshot.org.roles[1].blockers, ["missing approval"]);
+  assert.deepEqual(snapshot.org.blockers.map((entry) => [entry.role, entry.blocker]), [["reviewer", "missing approval"]]);
+  assert.equal(Object.hasOwn(snapshot, "orgState"), false);
+  assert.doesNotMatch(JSON.stringify(snapshot.org), /Internal manager summary|Reviewer details|wait for approval/);
+});

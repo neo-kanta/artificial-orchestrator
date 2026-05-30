@@ -67,6 +67,8 @@ Important files:
 
 Org runs stop when a configured done or blocked status is reached. The same terminal state is written to `status.json`, `provider-state.json`, and `org-state.json` so later automation can inspect the exact role, round, and blocker.
 
+The desktop GUI reads a sanitized projection of `org-state.json` for the organization map. It shows each role's status, latest round, active handoff, and role blockers without rendering raw role summaries by default.
+
 ## Custom Organizations
 
 Add orgs to `artificial-orchestrator.config.json`:

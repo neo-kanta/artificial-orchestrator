@@ -53,6 +53,10 @@ async function refreshState() {
   renderLauncher(elements, activeProject());
   renderProviderChoices(elements, currentState.providers, checkedProviderIds(elements));
   renderOrgChoices(elements, currentState.orgs);
+  if (!elements.orgSelect.value && currentState.run?.org?.id && currentState.orgs.some((org) => org.id === currentState.run.org.id)) {
+    elements.orgSelect.value = currentState.run.org.id;
+    renderProviderDisabledState(elements);
+  }
   renderCurrentOrgMap();
   renderRun(elements, currentState.run, openPath);
 
@@ -144,7 +148,9 @@ function activeOrg() {
 }
 
 function renderCurrentOrgMap() {
-  renderOrgMap(elements, activeOrg(), checkedProviderIds(elements), currentState?.providers ?? [], currentState?.run?.activeRole ?? null);
+  const org = activeOrg();
+  const runtimeOrg = org && currentState?.run?.org?.id === org.id ? currentState.run.org : null;
+  renderOrgMap(elements, org, checkedProviderIds(elements), currentState?.providers ?? [], runtimeOrg, currentState?.run?.activeRole ?? null);
 }
 
 window.addEventListener("beforeunload", () => {

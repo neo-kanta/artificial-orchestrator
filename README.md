@@ -33,6 +33,7 @@ The app uses the same project registry, provider configuration, organization pre
 - Add, list, and switch projects.
 - Enter a goal, choose a provider pipeline or organization preset, and set rounds.
 - Visualize an organization preset as role nodes with animated handoff paths between agents.
+- Inspect role status, active handoff, and role-level blockers directly on the organization map.
 - Choose explicit run permissions: plan-only, workspace edit, trusted full access, and Claude tools.
 - Start a run for the selected project.
 - Watch the latest transcript and phase updates while the run is active.

@@ -4,7 +4,7 @@ import { listOrgs } from "../orgs.js";
 import { runDuet } from "../orchestrator.js";
 import { addProject, currentProject, listProjects, useProject } from "../projects.js";
 import { latestStatus } from "../status.js";
-import { collectBlockers, publicProviderState } from "../domain/run-status.js";
+import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
 import { prepareRunOptions } from "./run-options.js";
 import { assertDirectory, readTail } from "../shared/workspace.js";
 
@@ -73,7 +73,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
     files: run.files,
     transcript,
     handoff,
-    orgState: run.orgState
+    org: publicOrgState(run.orgState)
   };
 }
 
