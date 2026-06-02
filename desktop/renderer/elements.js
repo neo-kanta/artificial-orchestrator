@@ -27,5 +27,6 @@ export const elements = {
   providerState: document.querySelector("#provider-state"),
   handoffView: document.querySelector("#handoff-view"),
   blockerList: document.querySelector("#blocker-list"),
-  fileList: document.querySelector("#file-list")
+  fileList: document.querySelector("#file-list"),
+  runHistory: document.querySelector("#run-history")
 };

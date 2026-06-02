@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runDuet } from "../src/orchestrator.js";
-import { addGuiProject, createGuiRunOptions, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
+import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -104,6 +104,12 @@ function registerIpc() {
     const workspace = payload.workspace ?? activeRun?.workspace;
     if (!workspace) return null;
     return guiRunSnapshot(workspace, payload);
+  });
+
+  ipcMain.handle("gui:history", async (_event, payload = {}) => {
+    const workspace = payload.workspace ?? activeRun?.workspace;
+    if (!workspace) return [];
+    return guiRunHistory(workspace, payload);
   });
 
   ipcMain.handle("gui:open-path", async (_event, payload = {}) => {

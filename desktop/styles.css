@@ -148,15 +148,16 @@ h3 {
 .project-list,
 .state-list,
 .blocker-list,
-.file-list {
+.file-list,
+.run-history {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.history-row,
 .project-row {
   width: 100%;
-  min-height: 62px;
   padding: 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -164,8 +165,14 @@ h3 {
   text-align: left;
 }
 
+.project-row {
+  min-height: 62px;
+}
+
 .project-row:hover,
-.project-row.selected {
+.project-row.selected,
+.history-row:hover,
+.history-row.selected {
   border-color: var(--line);
   background: var(--panel);
 }
@@ -286,15 +293,35 @@ textarea:focus {
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+.org-role-node.role-status-continue,
+.org-role-node.role-status-done {
+  border-color: rgba(47, 125, 89, 0.34);
+}
+
+.org-role-node.role-status-blocked {
+  border-color: rgba(180, 67, 63, 0.5);
+}
+
+.org-role-node.role-status-running {
+  border-color: rgba(59, 91, 146, 0.42);
+}
+
 .org-role-node.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.16);
   transform: translateY(-1px);
 }
 
+.org-role-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .org-role-provider {
   display: inline-block;
-  margin-bottom: 8px;
   padding: 3px 7px;
   border-radius: 999px;
   background: rgba(59, 91, 146, 0.1);
@@ -308,6 +335,45 @@ textarea:focus {
   display: block;
   margin-bottom: 5px;
   font-size: 13px;
+}
+
+.org-status-badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #ece8dd;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.org-status-badge.role-status-running {
+  background: rgba(59, 91, 146, 0.12);
+  color: var(--blue);
+}
+
+.org-status-badge.role-status-continue,
+.org-status-badge.role-status-done {
+  background: rgba(47, 125, 89, 0.12);
+  color: var(--green);
+}
+
+.org-status-badge.role-status-blocked {
+  background: rgba(180, 67, 63, 0.12);
+  color: var(--red);
+}
+
+.org-role-runtime {
+  display: block;
+  margin-top: 8px;
+  font-weight: 750;
+}
+
+.org-role-blocker {
+  display: block;
+  margin-top: 6px;
+  color: var(--red);
 }
 
 .communication-flow {
@@ -330,12 +396,28 @@ textarea:focus {
   font-weight: 750;
 }
 
+.communication-edge.complete {
+  color: var(--green);
+}
+
+.communication-edge.complete.active {
+  color: var(--accent-strong);
+}
+
 .edge-line {
   position: relative;
   height: 2px;
   overflow: hidden;
   border-radius: 999px;
   background: #d5dedb;
+}
+
+.communication-edge.complete .edge-line {
+  background: rgba(47, 125, 89, 0.24);
+}
+
+.communication-edge.active .edge-line {
+  background: rgba(47, 111, 115, 0.24);
 }
 
 .edge-line::after {
@@ -553,6 +635,60 @@ textarea:focus {
   border-bottom: 1px solid var(--line);
   font-size: 13px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.history-row {
+  display: grid;
+  gap: 7px;
+  min-height: 70px;
+}
+
+.history-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.history-goal {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.history-phase {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #ece8dd;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.history-phase.phase-running {
+  background: rgba(59, 91, 146, 0.12);
+  color: var(--blue);
+}
+
+.history-phase.phase-done {
+  background: rgba(47, 125, 89, 0.12);
+  color: var(--green);
+}
+
+.history-phase.phase-blocked,
+.history-phase.phase-rounds-exhausted {
+  background: rgba(180, 67, 63, 0.12);
+  color: var(--red);
+}
+
+.history-meta {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 

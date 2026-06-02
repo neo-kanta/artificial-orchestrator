@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readLatest } from "./logger.js";
 import { collectBlockers } from "./domain/run-status.js";
@@ -25,6 +25,54 @@ export async function latestStatus(workspace) {
     throw error;
   }
 
+  return statusFromDirectory(dir);
+}
+
+export async function statusForSession(workspace, sessionId) {
+  const id = String(sessionId ?? "").trim();
+  if (!id) throw new Error("Choose a run before loading it.");
+  if (id.includes("/") || id.includes("\\") || id === "." || id === "..") {
+    throw new Error("Run id must be a session directory name.");
+  }
+  return statusFromDirectory(join(workspace, ".duet", "sessions", id));
+}
+
+export async function recentStatuses(workspace, options = {}) {
+  const limit = historyLimit(options.limit);
+  const sessionsDir = join(workspace, ".duet", "sessions");
+  let entries;
+  try {
+    entries = await readdir(sessionsDir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+
+  const runs = [];
+  const sessionNames = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => b.localeCompare(a));
+
+  for (const name of sessionNames) {
+    if (runs.length >= limit) break;
+    try {
+      runs.push(await statusFromDirectory(join(sessionsDir, name)));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+
+  return runs;
+}
+
+function historyLimit(value) {
+  const requested = Number(value ?? 8);
+  if (!Number.isFinite(requested)) return 8;
+  return Math.max(1, Math.min(50, Math.trunc(requested)));
+}
+
+async function statusFromDirectory(dir) {
   const [status, providerState, orgState] = await Promise.all([
     readJson(join(dir, "status.json")),
     readOptionalJson(join(dir, "provider-state.json")),

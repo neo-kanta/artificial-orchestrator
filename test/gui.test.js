@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import { appendTurn, createSession, finalizeSession } from "../src/logger.js";
-import { addGuiProject, createGuiRunOptions, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
+import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
 
 test("gui state exposes projects and sanitized provider choices", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao gui-state-"));
@@ -166,4 +167,175 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.match(snapshot.latestHandoff, /credentials need to be configured/);
   assert.deepEqual(snapshot.blockers, ["missing credentials"]);
   assert.equal(snapshot.files.transcript, join(session.dir, "transcript.md"));
+});
+
+test("gui state exposes recent runs and can load a selected session", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-history-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  const registryPath = join(root, "projects.json");
+  await addGuiProject({ name: "history", path: workspace, registryPath });
+
+  const first = await createSession(workspace, "review prior run", {
+    project: { name: "history", path: resolve(workspace), source: "named" }
+  });
+  await appendTurn(first, {
+    round: 1,
+    provider: "codex",
+    providerKind: "command",
+    role: null,
+    orgStatus: "continue",
+    blockers: [],
+    ok: true,
+    text: "first private transcript detail\n\nHandoff: first private handoff detail",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+  await finalizeSession(first, {
+    status: "done",
+    reason: "complete",
+    provider: "codex",
+    round: 1,
+    blockers: []
+  });
+
+  await delay(5);
+
+  const second = await createSession(workspace, "inspect latest blocker", {
+    project: { name: "history", path: resolve(workspace), source: "named" }
+  });
+  await appendTurn(second, {
+    round: 1,
+    provider: "claude",
+    providerKind: "command",
+    role: null,
+    orgStatus: "blocked",
+    blockers: ["needs token"],
+    ok: false,
+    text: "second private transcript detail\n\nHandoff: second private handoff detail",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+  await finalizeSession(second, {
+    status: "blocked",
+    reason: "provider-blocked",
+    provider: "claude",
+    round: 1,
+    blockers: ["needs token"]
+  });
+
+  const history = await guiRunHistory(workspace, { historyLimit: 2 });
+  assert.equal(history.length, 2);
+  assert.equal(history[0].goal, "inspect latest blocker");
+  assert.equal(history[0].phase, "blocked");
+  assert.deepEqual(history[0].blockers, ["needs token"]);
+  assert.equal(history[1].goal, "review prior run");
+  assert.equal(history[1].phase, "done");
+  assert.equal(Object.hasOwn(history[0], "transcript"), false);
+  assert.equal(Object.hasOwn(history[0], "latestHandoff"), false);
+  assert.doesNotMatch(JSON.stringify(history), /private transcript detail|private handoff detail/);
+
+  const state = await guiState({ registryPath, historyLimit: 2 });
+  assert.equal(state.run.id, history[0].id);
+  assert.deepEqual(
+    state.runHistory.map((run) => run.id),
+    history.map((run) => run.id)
+  );
+
+  const priorSnapshot = await guiRunSnapshot(workspace, { sessionId: history[1].id });
+  assert.equal(priorSnapshot.goal, "review prior run");
+  assert.equal(priorSnapshot.phase, "done");
+  assert.match(priorSnapshot.transcript, /first private transcript detail/);
+});
+
+test("gui run snapshot exposes sanitized organization role progress", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-org-snapshot-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  const session = await createSession(workspace, "coordinate the release", {
+    project: { name: "release", path: resolve(workspace), source: "named" },
+    org: { id: "software-team", label: "Software Team", pipeline: ["manager", "reviewer", "docs"] }
+  });
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "manager",
+    providerId: "openai",
+    providerKind: "openai",
+    role: "manager",
+    orgStatus: "continue",
+    blockers: [],
+    ok: true,
+    text: "Internal manager summary should stay out of the public org projection.\n\nStatus: continue\n\nHandoff: reviewer should inspect the release.",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+
+  await appendTurn(session, {
+    round: 1,
+    provider: "reviewer",
+    providerId: "claude",
+    providerKind: "claude",
+    role: "reviewer",
+    orgStatus: "blocked",
+    blockers: ["missing approval"],
+    ok: true,
+    text: "Reviewer details should stay in the transcript.\n\nStatus: blocked\n\nHandoff: wait for approval.",
+    structured: null,
+    usage: null,
+    usageLine: "usage unavailable",
+    costUsd: null,
+    limit: null,
+    errors: [],
+    stderr: "",
+    durationMs: 10
+  });
+
+  await finalizeSession(session, {
+    status: "blocked",
+    reason: "organization-blocked",
+    provider: "reviewer",
+    round: 1,
+    blockers: ["missing approval"]
+  });
+
+  const snapshot = await guiRunSnapshot(workspace);
+  assert.equal(snapshot.phase, "blocked");
+  assert.equal(snapshot.activeRole, "reviewer");
+  assert.equal(snapshot.org.id, "software-team");
+  assert.equal(snapshot.org.phase, "blocked");
+  assert.deepEqual(
+    snapshot.org.roles.map((role) => [role.id, role.status, role.lastRound]),
+    [
+      ["manager", "continue", 1],
+      ["reviewer", "blocked", 1],
+      ["docs", "pending", null]
+    ]
+  );
+  assert.deepEqual(snapshot.org.roles[1].blockers, ["missing approval"]);
+  assert.deepEqual(snapshot.org.blockers.map((entry) => [entry.role, entry.blocker]), [["reviewer", "missing approval"]]);
+  assert.equal(Object.hasOwn(snapshot, "orgState"), false);
+  assert.doesNotMatch(JSON.stringify(snapshot.org), /Internal manager summary|Reviewer details|wait for approval/);
 });

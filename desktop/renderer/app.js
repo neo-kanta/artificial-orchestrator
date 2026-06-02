@@ -10,6 +10,7 @@ import {
   renderProviderChoices,
   renderProviderDisabledState,
   renderRun,
+  renderRunHistory,
   selectedProject,
   setMessage
 } from "./view.js";
@@ -19,6 +20,7 @@ const api = window.ao ?? null;
 let currentState = null;
 let selectedProjectName = null;
 let currentWorkspace = null;
+let selectedSessionId = null;
 let polling = null;
 
 bindEvents();
@@ -29,6 +31,7 @@ if (api) {
 } else {
   renderOrgMap(elements, null, ["claude", "codex"], []);
   elements.startButton.disabled = true;
+  renderRunHistory(elements, [], null, () => {});
   setMessage(elements, "Desktop bridge unavailable.", true);
 }
 
@@ -53,8 +56,13 @@ async function refreshState() {
   renderLauncher(elements, activeProject());
   renderProviderChoices(elements, currentState.providers, checkedProviderIds(elements));
   renderOrgChoices(elements, currentState.orgs);
+  if (!elements.orgSelect.value && currentState.run?.org?.id && currentState.orgs.some((org) => org.id === currentState.run.org.id)) {
+    elements.orgSelect.value = currentState.run.org.id;
+    renderProviderDisabledState(elements);
+  }
   renderCurrentOrgMap();
   renderRun(elements, currentState.run, openPath);
+  renderRunHistory(elements, currentState.runHistory ?? [], selectedSessionId ?? currentState.run?.id ?? null, selectHistoryRun);
 
   currentWorkspace = activeProject()?.path ?? currentState.workspace;
   await refreshLiveState();
@@ -65,16 +73,20 @@ async function refreshLiveState() {
   const processState = await api.runProcess();
   if (processState.activeRun) {
     currentWorkspace = processState.activeRun.workspace;
+    selectedSessionId = null;
   }
 
   if (!currentWorkspace) return;
 
   try {
-    const snapshot = await api.snapshot({ workspace: currentWorkspace });
+    const snapshot = await api.snapshot({ workspace: currentWorkspace, sessionId: selectedSessionId });
     if (snapshot) {
       if (currentState) currentState.run = snapshot;
       renderRun(elements, snapshot, openPath);
     }
+    const runHistory = await api.history({ workspace: currentWorkspace });
+    if (currentState) currentState.runHistory = runHistory;
+    renderRunHistory(elements, runHistory, snapshot?.id ?? selectedSessionId, selectHistoryRun);
   } catch (error) {
     if (processState.lastRunError) setMessage(elements, processState.lastRunError.message, true);
   }
@@ -83,6 +95,7 @@ async function refreshLiveState() {
 async function selectProject(project) {
   await api.useProject({ name: project.name });
   selectedProjectName = project.name;
+  selectedSessionId = null;
   await refreshState();
 }
 
@@ -99,6 +112,7 @@ async function addProject(event) {
     const path = elements.projectPath.value.trim();
     const result = await api.addProject({ name, path, setActive: true });
     selectedProjectName = result.project.name;
+    selectedSessionId = null;
     clearProjectForm(elements);
     await refreshState();
   } catch (error) {
@@ -115,6 +129,7 @@ async function startRun() {
   if (!input.orgName && input.providerIds.length === 0) return setMessage(elements, "Select at least one provider.", true);
 
   elements.startButton.disabled = true;
+  selectedSessionId = null;
   setMessage(elements, "Starting run...");
   try {
     await api.startRun({
@@ -131,6 +146,20 @@ async function startRun() {
   }
 }
 
+async function selectHistoryRun(run) {
+  if (!currentWorkspace || !run?.id) return;
+  try {
+    selectedSessionId = run.id;
+    const snapshot = await api.snapshot({ workspace: currentWorkspace, sessionId: run.id });
+    if (currentState) currentState.run = snapshot;
+    renderRun(elements, snapshot, openPath);
+    renderRunHistory(elements, currentState?.runHistory ?? [], snapshot.id, selectHistoryRun);
+    setMessage(elements, "");
+  } catch (error) {
+    setMessage(elements, error.message, true);
+  }
+}
+
 async function openPath(path) {
   await api.openPath({ path });
 }
@@ -144,7 +173,9 @@ function activeOrg() {
 }
 
 function renderCurrentOrgMap() {
-  renderOrgMap(elements, activeOrg(), checkedProviderIds(elements), currentState?.providers ?? [], currentState?.run?.activeRole ?? null);
+  const org = activeOrg();
+  const runtimeOrg = org && currentState?.run?.org?.id === org.id ? currentState.run.org : null;
+  renderOrgMap(elements, org, checkedProviderIds(elements), currentState?.providers ?? [], runtimeOrg, currentState?.run?.activeRole ?? null);
 }
 
 window.addEventListener("beforeunload", () => {
