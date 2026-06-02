@@ -1,21 +1,22 @@
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { loadConfig, providerRegistry } from "../config.js";
 import { listOrgs } from "../orgs.js";
 import { runDuet } from "../orchestrator.js";
 import { addProject, currentProject, listProjects, useProject } from "../projects.js";
-import { latestStatus } from "../status.js";
+import { latestStatus, recentStatuses, statusForSession } from "../status.js";
 import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
 import { prepareRunOptions } from "./run-options.js";
 import { assertDirectory, readTail } from "../shared/workspace.js";
 
 const DEFAULT_TRANSCRIPT_CHARS = 30000;
+const DEFAULT_HISTORY_LIMIT = 8;
 
 export async function guiState(options = {}) {
   const projects = await listProjects({ registryPath: options.registryPath });
   const activeProject = await currentProject({ registryPath: options.registryPath });
   const workspace = resolve(String(options.workspace ?? activeProject?.path ?? options.cwd ?? process.cwd()));
   const config = await loadConfig({ workspace, configPath: options.configPath });
-  const run = await optionalLatestSnapshot(workspace, options);
+  const [run, runHistory] = await Promise.all([optionalLatestSnapshot(workspace, options), optionalRunHistory(workspace, options)]);
 
   return {
     activeProject,
@@ -23,7 +24,8 @@ export async function guiState(options = {}) {
     workspace,
     providers: publicProviders(providerRegistry(config), config),
     orgs: publicOrgs(listOrgs(config)),
-    run
+    run,
+    runHistory
   };
 }
 
@@ -50,14 +52,20 @@ export async function startGuiRun(input = {}, deps = {}) {
   });
 }
 
+export async function guiRunHistory(workspace, options = {}) {
+  const runs = await recentStatuses(workspace, { limit: options.historyLimit ?? DEFAULT_HISTORY_LIMIT });
+  return runs.map(publicRunHistoryEntry);
+}
+
 export async function guiRunSnapshot(workspace, options = {}) {
-  const run = await latestStatus(workspace);
+  const run = options.sessionId ? await statusForSession(workspace, options.sessionId) : await latestStatus(workspace);
   const transcript = await readTail(run.files.transcript, Number(options.maxTranscriptChars ?? DEFAULT_TRANSCRIPT_CHARS));
   const handoff = await readTail(run.files.handoff, Number(options.maxHandoffChars ?? 6000));
   const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
   const final = run.status?.final ?? run.providerState?.final ?? null;
 
   return {
+    id: runId(run),
     session: run.session,
     goal: run.status?.goal ?? run.providerState?.goal ?? "",
     phase,
@@ -74,6 +82,43 @@ export async function guiRunSnapshot(workspace, options = {}) {
     transcript,
     handoff,
     org: publicOrgState(run.orgState)
+  };
+}
+
+function publicRunHistoryEntry(run) {
+  const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
+  const final = run.status?.final ?? run.providerState?.final ?? null;
+  const org = publicOrgState(run.orgState);
+  const providers = publicProviderState(run.status, run.providerState);
+
+  return {
+    id: runId(run),
+    session: run.session,
+    goal: run.status?.goal ?? run.providerState?.goal ?? "",
+    phase,
+    project: run.status?.project ?? run.providerState?.project ?? null,
+    org: org
+      ? {
+          id: org.id,
+          label: org.label,
+          phase: org.phase
+        }
+      : null,
+    startedAt: run.status?.startedAt ?? run.providerState?.startedAt ?? null,
+    updatedAt: run.status?.updatedAt ?? run.providerState?.updatedAt ?? null,
+    completedAt: run.status?.completedAt ?? run.providerState?.completedAt ?? null,
+    final: final
+      ? {
+          status: final.status ?? null,
+          reason: final.reason ?? null,
+          provider: final.provider ?? null,
+          round: final.round ?? null,
+          at: final.at ?? null
+        }
+      : null,
+    blockers: collectBlockers(run.status, final),
+    providerCount: providers.length,
+    files: run.files
   };
 }
 
@@ -137,4 +182,17 @@ async function optionalLatestSnapshot(workspace, options) {
     if (error.code === "ENOENT" || /No Artificial Orchestrator sessions found/.test(error.message)) return null;
     throw error;
   }
+}
+
+async function optionalRunHistory(workspace, options) {
+  try {
+    return await guiRunHistory(workspace, options);
+  } catch (error) {
+    if (error.code === "ENOENT" || /No Artificial Orchestrator sessions found/.test(error.message)) return [];
+    throw error;
+  }
+}
+
+function runId(run) {
+  return run.status?.id ?? run.providerState?.id ?? basename(run.session);
 }

@@ -16,7 +16,7 @@ Adapters should not duplicate orchestration behavior. They gather input, present
 ### Application services
 
 - `src/application/run-options.js` prepares validated run options from UI or CLI input.
-- `src/application/gui-service.js` exposes project, provider, organization, launch, and monitor operations for the desktop shell.
+- `src/application/gui-service.js` exposes project, provider, organization, launch, monitor, and recent-run history operations for the desktop shell.
 
 Application services are the boundary where project registry, config, runtime flags, provider selection, and organization presets are composed into a run request.
 
@@ -32,6 +32,7 @@ Domain helpers are deterministic and do not touch the filesystem or spawn provid
 - `src/orchestrator.js` runs provider turns and decides when a run is done, blocked, or rounds-exhausted.
 - `src/logger.js` owns durable session files under `.duet/sessions/<id>/`.
 - `src/status.js` reads and formats the latest durable run status.
+- `src/status.js` can also read a specific session or enumerate recent sessions for GUI-facing history views.
 - `src/tail.js` streams the latest transcript.
 
 These modules are shared by the CLI and desktop GUI. Any new interface should reuse them rather than implementing its own run loop.

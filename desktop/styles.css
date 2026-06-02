@@ -148,15 +148,16 @@ h3 {
 .project-list,
 .state-list,
 .blocker-list,
-.file-list {
+.file-list,
+.run-history {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.history-row,
 .project-row {
   width: 100%;
-  min-height: 62px;
   padding: 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -164,8 +165,14 @@ h3 {
   text-align: left;
 }
 
+.project-row {
+  min-height: 62px;
+}
+
 .project-row:hover,
-.project-row.selected {
+.project-row.selected,
+.history-row:hover,
+.history-row.selected {
   border-color: var(--line);
   background: var(--panel);
 }
@@ -628,6 +635,60 @@ textarea:focus {
   border-bottom: 1px solid var(--line);
   font-size: 13px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.history-row {
+  display: grid;
+  gap: 7px;
+  min-height: 70px;
+}
+
+.history-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.history-goal {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.history-phase {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #ece8dd;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.history-phase.phase-running {
+  background: rgba(59, 91, 146, 0.12);
+  color: var(--blue);
+}
+
+.history-phase.phase-done {
+  background: rgba(47, 125, 89, 0.12);
+  color: var(--green);
+}
+
+.history-phase.phase-blocked,
+.history-phase.phase-rounds-exhausted {
+  background: rgba(180, 67, 63, 0.12);
+  color: var(--red);
+}
+
+.history-meta {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 

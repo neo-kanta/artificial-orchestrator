@@ -1,6 +1,7 @@
 export {
   addGuiProject,
   createGuiRunOptions,
+  guiRunHistory,
   guiRunSnapshot,
   guiState,
   startGuiRun,

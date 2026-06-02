@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld("ao", {
   startRun: (payload) => ipcRenderer.invoke("gui:start-run", payload),
   runProcess: () => ipcRenderer.invoke("gui:run-process"),
   snapshot: (payload) => ipcRenderer.invoke("gui:snapshot", payload),
+  history: (payload) => ipcRenderer.invoke("gui:history", payload),
   openPath: (payload) => ipcRenderer.invoke("gui:open-path", payload)
 });

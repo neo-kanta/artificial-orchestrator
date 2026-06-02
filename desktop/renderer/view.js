@@ -168,6 +168,38 @@ export function renderRun(elements, run, openPath) {
   updateOrgActivity(elements, run?.activeRole ?? null, run?.org ?? null);
 }
 
+export function renderRunHistory(elements, runs = [], selectedRunId = null, onSelectRun) {
+  elements.runHistory.replaceChildren();
+  if (runs.length === 0) {
+    elements.runHistory.append(empty("No recent runs"));
+    return;
+  }
+
+  for (const run of runs) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `history-row ${run.id === selectedRunId ? "selected" : ""}`;
+    row.addEventListener("click", () => onSelectRun(run));
+
+    const main = document.createElement("span");
+    main.className = "history-main";
+    const goal = document.createElement("span");
+    goal.className = "history-goal";
+    goal.textContent = compactHistoryGoal(run.goal);
+    const phase = document.createElement("span");
+    phase.className = `history-phase phase-${String(run.phase ?? "unknown").replace(/_/g, "-")}`;
+    phase.textContent = run.phase ?? "unknown";
+    main.append(goal, phase);
+
+    const meta = document.createElement("span");
+    meta.className = "history-meta";
+    meta.textContent = historyMeta(run);
+
+    row.append(main, meta);
+    elements.runHistory.append(row);
+  }
+}
+
 export function selectedProject(projects, selectedProjectName, activeProject = null) {
   return selectProject(projects, selectedProjectName) ?? activeProject ?? null;
 }
@@ -399,4 +431,22 @@ function empty(text) {
   node.className = "empty-note";
   node.textContent = text;
   return node;
+}
+
+function compactHistoryGoal(goal) {
+  const value = String(goal ?? "").replace(/\s+/g, " ").trim();
+  if (!value) return "(no goal)";
+  return value.length > 90 ? `${value.slice(0, 87)}...` : value;
+}
+
+function historyMeta(run) {
+  const blockers = run.blockers?.length ? `${run.blockers.length} ${run.blockers.length === 1 ? "blocker" : "blockers"}` : null;
+  return [
+    run.project?.name ?? null,
+    run.org?.label ?? run.org?.id ?? null,
+    run.startedAt ? `started ${run.startedAt}` : run.updatedAt ? `updated ${run.updatedAt}` : null,
+    blockers
+  ]
+    .filter(Boolean)
+    .join(" | ");
 }
