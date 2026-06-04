@@ -1,0 +1,94 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
+
+const project = {
+  name: "demo",
+  path: "C:\\work\\demo"
+};
+
+const providers = [
+  { id: "claude", label: "Claude", kind: "command", role: "architect" },
+  { id: "codex", label: "Codex", kind: "command", role: "builder" }
+];
+
+const orgs = [
+  {
+    id: "software-team",
+    label: "Software Team",
+    roles: [{ id: "manager" }, { id: "builder" }]
+  }
+];
+
+test("desktop launch validation reports actionable readiness errors", () => {
+  const missing = validateLaunch(
+    {
+      goal: "",
+      rounds: 0,
+      providerIds: []
+    },
+    { project: null }
+  );
+
+  assert.equal(missing.ok, false);
+  assert.deepEqual(missing.errors, [
+    "Select a project before starting.",
+    "Enter a goal before starting.",
+    "Rounds must be a whole number from 1 to 20.",
+    "Select at least one provider or organization preset."
+  ]);
+
+  const ready = validateLaunch(
+    {
+      goal: "Ship the desktop launcher",
+      rounds: 2,
+      providerIds: ["claude", "codex"]
+    },
+    { project }
+  );
+
+  assert.equal(ready.ok, true);
+  assert.equal(ready.message, "Ready to start.");
+});
+
+test("desktop launch summary explains provider and permission choices", () => {
+  const summary = launchSummary(
+    {
+      providerIds: ["claude", "codex"],
+      rounds: 3,
+      permissionPolicy: "workspace",
+      claudeTools: false
+    },
+    { project, providers, orgs }
+  );
+
+  assert.deepEqual(
+    summary.map((item) => [item.label, item.value, item.detail]),
+    [
+      ["Project", "demo", "C:\\work\\demo"],
+      ["Providers", "Claude -> Codex", "Providers run in selected order."],
+      ["Run shape", "3 rounds", "Applies changes inside the selected project."],
+      ["Permissions", "Edit workspace", "Claude tools disabled."]
+    ]
+  );
+});
+
+test("desktop launch summary treats organization presets as the provider source", () => {
+  const summary = launchSummary(
+    {
+      orgName: "software-team",
+      providerIds: ["claude"],
+      rounds: 1,
+      permissionPolicy: "plan",
+      claudeTools: true
+    },
+    { project, providers, orgs }
+  );
+
+  assert.equal(summary[1].label, "Organization");
+  assert.equal(summary[1].value, "Software Team");
+  assert.equal(summary[1].detail, "2 roles in preset order.");
+  assert.equal(summary[2].value, "1 round");
+  assert.equal(summary[3].detail, "Claude tools enabled.");
+  assert.match(selectedProviderNotice({ orgName: "software-team" }), /locked/);
+});

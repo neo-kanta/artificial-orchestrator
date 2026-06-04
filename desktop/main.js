@@ -133,5 +133,5 @@ function publicRun(run) {
 }
 
 function errorMessage(error) {
-  return error && error.stack ? error.stack : String(error);
+  return error?.message ? error.message : String(error);
 }

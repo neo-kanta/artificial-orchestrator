@@ -1,3 +1,5 @@
+import { launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
+
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
   const project = selectProject(projects, selectedProjectName);
   elements.activeProjectLabel.textContent = project ? `${project.name} - ${project.path}` : "No active project";
@@ -41,10 +43,15 @@ export function renderProviderChoices(elements, providers, selectedProviderIds) 
     input.value = provider.id;
     input.checked = selectedProviderIds.length > 0 ? selectedProviderIds.includes(provider.id) : ["claude", "codex"].includes(provider.id);
 
+    const copy = document.createElement("span");
+    copy.className = "provider-copy";
     const text = document.createElement("span");
-    text.textContent = `${provider.label} (${provider.kind})`;
+    text.textContent = provider.label;
+    const meta = document.createElement("small");
+    meta.textContent = providerMeta(provider);
+    copy.append(text, meta);
 
-    label.append(input, text);
+    label.append(input, copy);
     elements.providerList.append(label);
   }
 
@@ -62,9 +69,31 @@ export function renderOrgChoices(elements, orgs) {
 
 export function renderProviderDisabledState(elements) {
   const disabled = Boolean(elements.orgSelect.value);
-  for (const input of elements.providerList.querySelectorAll("input")) {
+  elements.providerNotice.textContent = selectedProviderNotice(launchInput(elements));
+  for (const label of elements.providerList.querySelectorAll(".provider-choice")) {
+    const input = label.querySelector("input");
     input.disabled = disabled;
+    label.classList.toggle("disabled", disabled);
   }
+}
+
+export function renderLaunchReadiness(elements, input, context = {}, processState = {}) {
+  const validation = validateLaunch(input, context);
+  const activeRun = processState.activeRun ?? null;
+  const isActive = Boolean(activeRun);
+
+  elements.startButton.disabled = isActive || !validation.ok;
+  elements.startButton.textContent = isActive ? "Run active" : "Start run";
+  renderProcessBanner(elements, processState);
+  renderSummary(elements, launchSummary(input, context));
+
+  if (isActive) {
+    setMessage(elements, "A run is active. Monitor is updating.");
+  } else {
+    setMessage(elements, validation.message, !validation.ok);
+  }
+
+  return validation;
 }
 
 const ROLE_STATUS_CLASSES = [
@@ -298,6 +327,55 @@ function renderFiles(elements, files, openPath) {
   }
 }
 
+function renderProcessBanner(elements, processState = {}) {
+  const activeRun = processState.activeRun ?? null;
+  const lastRunError = processState.lastRunError ?? null;
+  elements.processBanner.hidden = !activeRun && !lastRunError;
+
+  if (activeRun) {
+    const project = activeRun.project?.name ?? activeRun.workspace;
+    elements.processBanner.className = "process-banner running";
+    elements.processBanner.textContent = `Running ${project} since ${activeRun.startedAt}.`;
+    return;
+  }
+
+  if (lastRunError) {
+    elements.processBanner.className = "process-banner error";
+    elements.processBanner.textContent = `Last run failed: ${firstLine(lastRunError.message)}`;
+  }
+}
+
+function renderSummary(elements, items) {
+  elements.launchSummaryList.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "summary-row";
+    const label = document.createElement("span");
+    label.className = "summary-label";
+    label.textContent = item.label;
+    const body = document.createElement("span");
+    body.className = "summary-body";
+    const value = document.createElement("strong");
+    value.textContent = item.value;
+    const detail = document.createElement("small");
+    detail.textContent = item.detail;
+    body.append(value, detail);
+    row.append(label, body);
+    elements.launchSummaryList.append(row);
+  }
+}
+
+function providerMeta(provider) {
+  return [
+    provider.kind,
+    provider.role && provider.role !== "provider" ? provider.role : null,
+    provider.model,
+    provider.configured ? "configured" : null
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
 function orgGraphFromPreset(org) {
   return {
     title: org.label,
@@ -417,6 +495,12 @@ function compactTimes(run) {
   return [run.startedAt ? `started ${run.startedAt}` : null, run.updatedAt ? `updated ${run.updatedAt}` : null, run.completedAt ? `completed ${run.completedAt}` : null]
     .filter(Boolean)
     .join(" | ");
+}
+
+function firstLine(value) {
+  return String(value ?? "")
+    .split(/\r?\n/)
+    .find(Boolean) ?? "Unknown error.";
 }
 
 function option(value, label) {
