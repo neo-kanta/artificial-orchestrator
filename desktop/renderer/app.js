@@ -6,6 +6,7 @@ import {
   renderAgentChat,
   renderAgentRoles,
   renderLauncher,
+  renderLaunchReadiness,
   renderOrgMap,
   renderOrgChoices,
   renderProjects,
@@ -24,6 +25,7 @@ let currentState = null;
 let selectedProjectName = null;
 let currentWorkspace = null;
 let selectedSessionId = null;
+let currentProcessState = { activeRun: null, lastRunError: null };
 let polling = null;
 let agentRoles = [];
 let agentRosterDirty = false;
@@ -55,13 +57,24 @@ function bindEvents() {
   elements.providerList.addEventListener("change", () => {
     if (!elements.orgSelect.value) seedAgentRolesFromSelection(true);
     renderCurrentOrgMap();
+    renderLaunchState();
   });
+  elements.goalInput.addEventListener("input", renderLaunchState);
+  elements.roundsInput.addEventListener("input", renderLaunchState);
+  elements.claudeToolsToggle.addEventListener("change", renderLaunchState);
+  for (const input of [elements.permissionPlan, elements.permissionWorkspace, elements.permissionTrusted]) {
+    input.addEventListener("change", renderLaunchState);
+  }
   elements.startButton.addEventListener("click", startRun);
 }
 
 async function refreshState() {
   setMessage(elements, "");
   currentState = await api.state();
+  currentProcessState = {
+    activeRun: currentState.activeRun ?? null,
+    lastRunError: currentState.lastRunError ?? null
+  };
   selectedProjectName ??= currentState.activeProject?.name ?? currentState.projects[0]?.name ?? null;
 
   renderProjects(elements, currentState.projects, selectedProjectName, selectProject);
@@ -85,6 +98,7 @@ async function refreshState() {
     selectedSessionId ?? currentState.run?.id ?? null,
     selectHistoryRun
   );
+  renderLaunchState();
 
   currentWorkspace = activeProject()?.path ?? currentState.workspace;
   await refreshLiveState();
@@ -93,6 +107,7 @@ async function refreshState() {
 async function refreshLiveState() {
   if (!api) return;
   const processState = await api.runProcess();
+  currentProcessState = processState;
   if (processState.activeRun) {
     currentWorkspace = processState.activeRun.workspace;
     selectedSessionId = null;
@@ -115,6 +130,7 @@ async function refreshLiveState() {
   } catch (error) {
     if (processState.lastRunError) setMessage(elements, processState.lastRunError.message, true);
   }
+  renderLaunchState();
 }
 
 async function selectProject(project) {
@@ -150,28 +166,44 @@ async function addProject(event) {
 async function startRun() {
   const input = launchInput(elements);
   const project = activeProject();
+  const validation = renderLaunchState();
 
-  if (!project) return setMessage(elements, "Select a project before starting.", true);
-  if (!input.goal) return setMessage(elements, "Enter a goal before starting.", true);
-  if (!input.orgName && input.providerIds.length === 0 && agentRoles.length === 0) return setMessage(elements, "Select at least one provider.", true);
+  if (!validation.ok) return;
+  if (currentProcessState.activeRun) return;
 
   elements.startButton.disabled = true;
+  elements.startButton.textContent = "Starting...";
   selectedSessionId = null;
   selectedAgentId = null;
   setMessage(elements, "Starting run...");
+  let failedToStart = false;
   try {
-    await api.startRun({
+    const result = await api.startRun({
       projectName: project.name,
       ...(agentRosterDirty ? { agentRoles: launchAgentRoles(), agentOrgLabel: customOrgLabel() } : {}),
       ...input
     });
+    currentProcessState = {
+      activeRun: result.activeRun ?? null,
+      lastRunError: null
+    };
     currentWorkspace = project.path;
     await refreshLiveState();
     setMessage(elements, "");
   } catch (error) {
-    setMessage(elements, error.message, true);
+    failedToStart = true;
+    const message = error?.message ?? String(error);
+    currentProcessState = {
+      activeRun: null,
+      lastRunError: {
+        at: new Date().toISOString(),
+        message
+      }
+    };
+    renderLaunchState();
+    setMessage(elements, message, true);
   } finally {
-    elements.startButton.disabled = false;
+    if (!failedToStart) renderLaunchState();
   }
 }
 
@@ -223,6 +255,7 @@ function renderAgentRoster() {
       agentRoles = normalizeRoleDrafts(roles);
       agentRosterDirty = true;
       renderCurrentOrgMap();
+      renderLaunchState();
     },
     addAgentRole,
     removeAgentRole
@@ -291,6 +324,7 @@ function addAgentRole() {
   agentRosterDirty = true;
   renderAgentRoster();
   renderCurrentOrgMap();
+  renderLaunchState();
 }
 
 function removeAgentRole(index) {
@@ -299,6 +333,7 @@ function removeAgentRole(index) {
   agentRosterDirty = true;
   renderAgentRoster();
   renderCurrentOrgMap();
+  renderLaunchState();
 }
 
 function launchAgentRoles() {
@@ -368,6 +403,20 @@ function uniqueRoleId(base, seen = new Set(agentRoles.map((role) => role.id))) {
     suffix += 1;
   }
   return id;
+}
+
+function renderLaunchState() {
+  return renderLaunchReadiness(
+    elements,
+    launchInput(elements),
+    {
+      project: activeProject(),
+      providers: currentState?.providers ?? [],
+      orgs: currentState?.orgs ?? [],
+      agentRoles: agentRosterDirty ? agentRoles : []
+    },
+    currentProcessState
+  );
 }
 
 window.addEventListener("beforeunload", () => {

@@ -10,6 +10,7 @@ Artificial Orchestrator is organized around one rule: provider orchestration is 
 - `src/cli.js` translates CLI arguments into application requests.
 - `desktop/` contains the Electron shell.
 - `desktop/renderer/` contains the browser-side GUI controller and view rendering.
+- `desktop/renderer/launch-state.js` keeps launcher readiness and summary rules deterministic and testable without duplicating run orchestration.
 
 Adapters should not duplicate orchestration behavior. They gather input, present state, and call application services.
 

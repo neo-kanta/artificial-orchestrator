@@ -54,6 +54,7 @@
             </div>
             <div id="phase-badge" class="phase-badge phase-idle">idle</div>
           </div>
+          <div id="process-banner" class="process-banner" hidden></div>
 
           <label class="goal-label">
             Goal
@@ -100,7 +101,10 @@
           </section>
 
           <div>
-            <div class="field-label">Providers</div>
+            <div class="provider-head">
+              <div class="field-label">Providers</div>
+              <p id="provider-notice" class="provider-notice"></p>
+            </div>
             <div id="provider-list" class="provider-list"></div>
           </div>
 
@@ -126,6 +130,16 @@
               </div>
             </div>
             <label class="tool-permission"><input id="claude-tools-toggle" type="checkbox" /> Allow Claude tools</label>
+          </section>
+
+          <section class="launch-summary" aria-label="Run summary">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Run summary</p>
+                <h3>Ready check</h3>
+              </div>
+            </div>
+            <div id="launch-summary-list" class="summary-list"></div>
           </section>
 
           <div class="launch-actions">
