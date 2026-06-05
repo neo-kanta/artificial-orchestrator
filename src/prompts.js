@@ -5,6 +5,7 @@ export function claudeArchitectPrompt({ goal, round, workspaceSnapshot, history,
     "Use public reasoning only: do not reveal private chain-of-thought. Show decisions, tradeoffs, and next actions.",
     "Do not edit files in this role unless tools were explicitly enabled by the orchestrator.",
     "Read the durable provider state and latest handoff before acting; end with a concise handoff for the next provider.",
+    sharedContextLine(),
     "",
     `Round: ${round}`,
     `Goal: ${goal}`,
@@ -37,6 +38,7 @@ export function codexBuilderPrompt({ goal, round, workspaceSnapshot, history, du
     "Use Claude's visible architecture guidance as peer input, but make your own practical decisions.",
     "Use public reasoning only: summarize intent, decisions, actions, and verification; do not reveal private chain-of-thought.",
     "Read the durable provider state and latest handoff before acting; end with a concise handoff for the next provider.",
+    sharedContextLine(),
     apply
       ? "You may edit the workspace to advance the goal. Keep changes scoped, run relevant checks, and do not revert unrelated user changes."
       : "Do not edit files in this run. Produce an implementation plan and commands/checks the user can approve later.",
@@ -88,6 +90,7 @@ export function orgRolePrompt({ provider, goal, round, workspaceSnapshot, histor
     `Provider backing this role: ${provider.providerId ?? provider.kind}.`,
     `Responsibility: ${provider.responsibility}`,
     "Coordinate like a disciplined engineering organization: concise handoffs, explicit blockers, and no hidden chain-of-thought.",
+    sharedContextLine(),
     apply
       ? "If your backing provider has tools, keep changes scoped and do not revert unrelated user work."
       : "Do not edit files in this run. Provide plans, review notes, and verification guidance.",
@@ -133,6 +136,7 @@ function genericProviderPrompt({ provider, goal, round, workspaceSnapshot, histo
     "Collaborate with the other providers through public, concise outputs.",
     "Do not reveal private hidden chain-of-thought. Show decisions, tradeoffs, evidence, and next actions.",
     "Read the durable provider state and latest handoff before acting; end with a concise handoff for the next provider.",
+    sharedContextLine(),
     apply
       ? "If your adapter has tools, keep changes scoped and do not revert unrelated user work."
       : "Do not edit files in this run. Provide plans, review notes, and verification guidance.",
@@ -160,4 +164,8 @@ function genericProviderPrompt({ provider, goal, round, workspaceSnapshot, histo
     "5. Handoff for next provider",
     "6. ORCHESTRATOR_STATUS: continue or done"
   ].join("\n");
+}
+
+function sharedContextLine() {
+  return "All agents share the same public context: recent transcript, provider state, organization state, and durable handoffs are common memory for the whole team.";
 }

@@ -43,7 +43,8 @@ export async function runDuet(options) {
               workspaceSnapshot: snapshot,
               history: compactHistory(history, options.historyChars),
               durableState,
-              apply: options.apply
+              apply: options.apply,
+              sharedContext: options.sharedContext !== false
             })
           ),
         history

@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import { appendTurn, createSession, finalizeSession } from "../src/logger.js";
 import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
+import { runAnalytics } from "../desktop/renderer/view.js";
 
 test("gui state exposes projects and sanitized provider choices", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao gui-state-"));
@@ -116,6 +117,52 @@ test("gui run options validate launch input and reuse provider resolution", asyn
   );
 });
 
+test("gui run options can compose custom agent roles with model overrides", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-custom-agents-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  const registryPath = join(root, "projects.json");
+  await addGuiProject({ name: "agents", path: workspace, registryPath });
+
+  const options = await createGuiRunOptions({
+    registryPath,
+    projectName: "agents",
+    goal: "coordinate custom specialists",
+    rounds: 2,
+    sharedContext: true,
+    agentOrgLabel: "Desktop Custom Team",
+    agentRoles: [
+      {
+        id: "research",
+        label: "Research Lead",
+        providerId: "openai",
+        model: "gpt-research",
+        responsibility: "Collect constraints and source context."
+      },
+      {
+        id: "builder",
+        label: "Builder",
+        providerId: "codex",
+        model: "gpt-builder",
+        responsibility: "Implement the accepted plan."
+      }
+    ]
+  });
+
+  assert.equal(options.sharedContext, true);
+  assert.equal(options.org.id, "desktop-custom-team");
+  assert.equal(options.org.label, "Desktop Custom Team");
+  assert.deepEqual(options.org.pipeline, ["research", "builder"]);
+  assert.equal(options.org.roles[0].label, "Research Lead");
+  assert.equal(options.org.roles[0].model, "gpt-research");
+  assert.equal(options.org.roles[0].providerId, "openai");
+  assert.equal(options.org.roles[1].kind, "codex");
+  assert.equal(options.org.roles[1].model, "gpt-builder");
+  assert.deepEqual(options.providers, []);
+});
+
 test("gui can switch projects and summarize durable run files", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao gui-snapshot-"));
   t.after(async () => rm(root, { recursive: true, force: true }));
@@ -167,6 +214,13 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.match(snapshot.latestHandoff, /credentials need to be configured/);
   assert.deepEqual(snapshot.blockers, ["missing credentials"]);
   assert.equal(snapshot.files.transcript, join(session.dir, "transcript.md"));
+  assert.equal(snapshot.files.events, join(session.dir, "events.ndjson"));
+  assert.equal(snapshot.agentMessages.length, 1);
+  assert.equal(snapshot.agentMessages[0].agentId, "reviewer");
+  assert.equal(snapshot.agentMessages[0].provider, "reviewer");
+  assert.equal(snapshot.agentMessages[0].status, "blocked");
+  assert.deepEqual(snapshot.agentMessages[0].blockers, ["missing credentials"]);
+  assert.match(snapshot.agentMessages[0].handoff, /credentials need to be configured/);
 });
 
 test("gui state exposes recent runs and can load a selected session", async (t) => {
@@ -336,6 +390,67 @@ test("gui run snapshot exposes sanitized organization role progress", async (t) 
   );
   assert.deepEqual(snapshot.org.roles[1].blockers, ["missing approval"]);
   assert.deepEqual(snapshot.org.blockers.map((entry) => [entry.role, entry.blocker]), [["reviewer", "missing approval"]]);
+  assert.deepEqual(
+    snapshot.agentMessages.map((message) => [message.agentId, message.provider, message.providerId, message.status, message.round]),
+    [
+      ["manager", "manager", "openai", "continue", 1],
+      ["reviewer", "reviewer", "claude", "blocked", 1]
+    ]
+  );
+  assert.match(snapshot.agentMessages[0].text, /Internal manager summary/);
+  assert.match(snapshot.agentMessages[1].handoff, /wait for approval/);
+  assert.deepEqual(snapshot.agentMessages[1].blockers, ["missing approval"]);
   assert.equal(Object.hasOwn(snapshot, "orgState"), false);
   assert.doesNotMatch(JSON.stringify(snapshot.org), /Internal manager summary|Reviewer details|wait for approval/);
+});
+
+test("run analytics summarizes recent outcomes and current provider usage", () => {
+  const selected = {
+    id: "run-3",
+    phase: "blocked",
+    startedAt: "2026-06-05T08:00:00.000Z",
+    updatedAt: "2026-06-05T08:07:00.000Z",
+    blockers: ["missing token"],
+    providers: [
+      {
+        id: "codex",
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 300
+        }
+      }
+    ]
+  };
+  const history = [
+    selected,
+    {
+      id: "run-2",
+      phase: "done",
+      startedAt: "2026-06-04T08:00:00.000Z",
+      completedAt: "2026-06-04T08:03:00.000Z",
+      blockers: []
+    },
+    {
+      id: "run-1",
+      phase: "rounds_exhausted",
+      startedAt: "2026-06-03T08:00:00.000Z",
+      completedAt: "2026-06-03T08:10:00.000Z",
+      blockers: ["round limit"]
+    }
+  ];
+
+  const analytics = runAnalytics(selected, history);
+
+  assert.equal(analytics.total, 3);
+  assert.equal(analytics.phaseCounts.blocked, 1);
+  assert.equal(analytics.phaseCounts.done, 1);
+  assert.equal(analytics.phaseCounts.rounds_exhausted, 1);
+  assert.equal(analytics.metrics[1].value, "33%");
+  assert.equal(analytics.metrics[2].value, "2");
+  assert.equal(analytics.metrics[3].label, "Current tokens");
+  assert.equal(analytics.metrics[3].value, "1.5k");
+  assert.deepEqual(
+    analytics.timeline.map((run) => run.id),
+    ["run-1", "run-2", "run-3"]
+  );
 });

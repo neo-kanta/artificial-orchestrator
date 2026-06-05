@@ -73,6 +73,21 @@
             </label>
           </div>
 
+          <section class="agent-roster-panel" aria-label="Agent roles and models">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Agent roster</p>
+                <h3>Roles and models</h3>
+              </div>
+              <button id="add-agent-button" class="ghost-button" type="button">Add agent</button>
+            </div>
+            <div id="agent-role-list" class="agent-role-list"></div>
+            <label class="shared-context-toggle">
+              <input id="shared-context-toggle" type="checkbox" checked />
+              <span>Share all context across agents</span>
+            </label>
+          </section>
+
           <section class="org-map-panel" aria-label="Organization structure">
             <div class="section-heading">
               <div>
@@ -127,7 +142,40 @@
             </div>
             <div id="run-times" class="run-times"></div>
           </div>
-          <pre id="transcript-view" class="transcript-view"></pre>
+          <section class="run-visualization" aria-labelledby="run-visualization-title">
+            <div class="viz-head">
+              <div>
+                <p class="eyebrow">Run analytics</p>
+                <h3 id="run-visualization-title">No sessions yet</h3>
+              </div>
+              <p id="run-visualization-meta" class="viz-meta"></p>
+            </div>
+            <div id="run-metrics" class="run-metrics"></div>
+            <div class="viz-layout">
+              <div class="phase-mix" aria-label="Recent run outcome mix">
+                <div id="phase-mix-bar" class="phase-mix-bar"></div>
+                <div id="phase-mix-legend" class="phase-mix-legend"></div>
+              </div>
+              <div id="run-timeline" class="run-timeline" aria-label="Recent run timeline"></div>
+            </div>
+          </section>
+          <section class="agent-chat-panel" aria-label="Agent chat monitor">
+            <div class="agent-chat-head">
+              <div>
+                <p class="eyebrow">Agent chat</p>
+                <h3 id="agent-chat-title">No agent selected</h3>
+              </div>
+              <p id="agent-chat-meta" class="agent-chat-meta"></p>
+            </div>
+            <div class="agent-chat-layout">
+              <div id="agent-chat-list" class="agent-chat-list" aria-label="Agents in this run"></div>
+              <div id="agent-chat-thread" class="agent-chat-thread" aria-label="Selected agent messages"></div>
+            </div>
+          </section>
+          <details class="full-transcript-panel">
+            <summary>Full transcript</summary>
+            <pre id="transcript-view" class="transcript-view"></pre>
+          </details>
         </section>
       </main>
 

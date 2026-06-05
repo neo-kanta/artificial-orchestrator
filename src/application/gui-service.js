@@ -1,5 +1,7 @@
-import { basename, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { loadConfig, providerRegistry } from "../config.js";
+import { handoffForTurn } from "../domain/handoff.js";
 import { listOrgs } from "../orgs.js";
 import { runDuet } from "../orchestrator.js";
 import { addProject, currentProject, listProjects, useProject } from "../projects.js";
@@ -7,8 +9,11 @@ import { latestStatus, recentStatuses, statusForSession } from "../status.js";
 import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
 import { prepareRunOptions } from "./run-options.js";
 import { assertDirectory, readTail } from "../shared/workspace.js";
+import { compactText } from "../shared/text.js";
 
 const DEFAULT_TRANSCRIPT_CHARS = 30000;
+const DEFAULT_AGENT_MESSAGE_CHARS = 6000;
+const DEFAULT_AGENT_HANDOFF_CHARS = 1600;
 const DEFAULT_HISTORY_LIMIT = 8;
 
 export async function guiState(options = {}) {
@@ -59,8 +64,11 @@ export async function guiRunHistory(workspace, options = {}) {
 
 export async function guiRunSnapshot(workspace, options = {}) {
   const run = options.sessionId ? await statusForSession(workspace, options.sessionId) : await latestStatus(workspace);
-  const transcript = await readTail(run.files.transcript, Number(options.maxTranscriptChars ?? DEFAULT_TRANSCRIPT_CHARS));
-  const handoff = await readTail(run.files.handoff, Number(options.maxHandoffChars ?? 6000));
+  const [transcript, handoff, agentMessages] = await Promise.all([
+    readTail(run.files.transcript, Number(options.maxTranscriptChars ?? DEFAULT_TRANSCRIPT_CHARS)),
+    readTail(run.files.handoff, Number(options.maxHandoffChars ?? 6000)),
+    readAgentMessages(run.session, options)
+  ]);
   const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
   const final = run.status?.final ?? run.providerState?.final ?? null;
 
@@ -81,6 +89,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
     files: run.files,
     transcript,
     handoff,
+    agentMessages,
     org: publicOrgState(run.orgState)
   };
 }
@@ -129,10 +138,16 @@ function publicProviders(registry, config) {
       label: provider.label ?? provider.id,
       kind: provider.kind ?? "command",
       role: provider.role ?? "provider",
-      model: provider.model ?? null,
+      model: provider.model ?? defaultModelForKind(provider.kind),
       configured: Boolean(config?.providers?.[provider.id])
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function defaultModelForKind(kind) {
+  if (kind === "codex") return "gpt-5.4-mini";
+  if (kind === "openai") return "gpt-5.5";
+  return null;
 }
 
 function publicOrgs(orgs) {
@@ -144,6 +159,79 @@ function publicOrgs(orgs) {
     roles: publicOrgRoles(org),
     edges: publicOrgEdges(org)
   }));
+}
+
+async function readAgentMessages(sessionDir, options = {}) {
+  let text;
+  try {
+    text = await readFile(join(sessionDir, "events.ndjson"), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+
+  const maxTextChars = Number(options.maxAgentMessageChars ?? DEFAULT_AGENT_MESSAGE_CHARS);
+  const maxHandoffChars = Number(options.maxAgentHandoffChars ?? DEFAULT_AGENT_HANDOFF_CHARS);
+  return text
+    .split(/\r?\n/)
+    .map((line, index) => publicAgentMessage(parseEventLine(line), index, maxTextChars, maxHandoffChars))
+    .filter(Boolean);
+}
+
+function parseEventLine(line) {
+  const text = String(line ?? "").trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function publicAgentMessage(turn, index, maxTextChars, maxHandoffChars) {
+  if (!turn || typeof turn !== "object") return null;
+  const speaker = String(turn.role ?? turn.provider ?? turn.providerId ?? `agent-${index + 1}`).trim() || `agent-${index + 1}`;
+  const provider = turn.provider ? String(turn.provider) : speaker;
+  const providerId = turn.providerId ? String(turn.providerId) : provider;
+  const round = Number(turn.round);
+  const durationMs = Number(turn.durationMs);
+
+  return {
+    id: `${Number.isFinite(round) ? round : index + 1}-${speaker}-${index}`,
+    agentId: speaker,
+    speaker,
+    role: turn.role ? String(turn.role) : null,
+    provider,
+    providerId,
+    providerKind: turn.providerKind ? String(turn.providerKind) : null,
+    round: Number.isFinite(round) ? round : null,
+    status: publicTurnStatus(turn),
+    ok: typeof turn.ok === "boolean" ? turn.ok : null,
+    at: turn.at ?? null,
+    durationMs: Number.isFinite(durationMs) ? durationMs : null,
+    usageLine: turn.usageLine ? String(turn.usageLine) : "",
+    limit: turn.limit
+      ? {
+          reset: turn.limit.reset ? String(turn.limit.reset) : null
+        }
+      : null,
+    text: compactText(turn.text ?? "(no output)", maxTextChars),
+    handoff: compactText(handoffForTurn(turn), maxHandoffChars),
+    blockers: publicBlockers(turn.blockers)
+  };
+}
+
+function publicTurnStatus(turn) {
+  const status = String(turn.orgStatus ?? "").toLowerCase().replace(/_/g, "-");
+  if (["continue", "done", "blocked"].includes(status)) return status;
+  if (turn.ok === false) return "blocked";
+  if (turn.ok === true) return "continue";
+  return "unknown";
+}
+
+function publicBlockers(blockers) {
+  if (!Array.isArray(blockers)) return [];
+  return blockers.map((blocker) => compactText(blocker, 400)).filter(Boolean);
 }
 
 function publicOrgRoles(org) {

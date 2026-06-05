@@ -86,6 +86,7 @@ async function statusFromDirectory(dir) {
     orgState,
     files: {
       transcript: join(dir, "transcript.md"),
+      events: join(dir, "events.ndjson"),
       status: join(dir, "status.json"),
       handoff: join(dir, "handoff.md"),
       providerState: join(dir, "provider-state.json"),
