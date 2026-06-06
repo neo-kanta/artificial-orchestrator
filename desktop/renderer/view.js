@@ -281,6 +281,7 @@ export function renderRun(elements, run, openPath) {
   elements.transcriptView.textContent = run?.transcript ?? "";
   elements.handoffView.textContent = run?.latestHandoff || run?.handoff || "";
 
+  renderRecovery(elements, run?.recovery ?? null, openPath);
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
   renderFiles(elements, run?.files ?? {}, openPath);
@@ -507,6 +508,65 @@ function renderStateList(elements, providers) {
     meta.textContent = provider.limit ? `limit reset ${provider.limit.reset}` : provider.lastRound ? `round ${provider.lastRound}` : provider.state;
     row.append(dot, label, meta);
     elements.providerState.append(row);
+  }
+}
+
+function renderRecovery(elements, recovery, openPath) {
+  const state = recovery ?? {
+    severity: "neutral",
+    title: "No run loaded",
+    summary: "Start or load a run to see next actions.",
+    nextSteps: ["Select a project, enter a goal, and start a run."],
+    files: []
+  };
+
+  elements.recoveryStatus.className = `recovery-status recovery-${state.severity ?? "neutral"}`;
+  elements.recoveryTitle.textContent = state.title ?? "Run state";
+  elements.recoverySummary.textContent = state.summary ?? "";
+  elements.recoveryActions.replaceChildren();
+
+  const nextSteps = Array.isArray(state.nextSteps) ? state.nextSteps.filter(Boolean) : [];
+  if (nextSteps.length > 0) {
+    const group = document.createElement("div");
+    group.className = "recovery-action-group";
+    const label = document.createElement("span");
+    label.className = "recovery-group-label";
+    label.textContent = "Next actions";
+    const list = document.createElement("ol");
+    list.className = "recovery-step-list";
+    for (const step of nextSteps) {
+      const item = document.createElement("li");
+      item.textContent = step;
+      list.append(item);
+    }
+    group.append(label, list);
+    elements.recoveryActions.append(group);
+  }
+
+  const files = Array.isArray(state.files) ? state.files.filter((file) => file?.path) : [];
+  if (files.length > 0) {
+    const group = document.createElement("div");
+    group.className = "recovery-action-group";
+    const label = document.createElement("span");
+    label.className = "recovery-group-label";
+    label.textContent = "Priority files";
+    group.append(label);
+
+    for (const file of files) {
+      const row = document.createElement("div");
+      row.className = "recovery-file-row";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "ghost-button";
+      button.textContent = file.label ?? file.key ?? "Open";
+      button.addEventListener("click", () => openPath(file.path));
+      const detail = document.createElement("span");
+      detail.textContent = file.detail ?? file.path;
+      row.append(button, detail);
+      group.append(row);
+    }
+
+    elements.recoveryActions.append(group);
   }
 }
 

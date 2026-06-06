@@ -157,6 +157,9 @@ h3 {
 .validation-message,
 .state-row span:last-child,
 .file-row span,
+.recovery-status span,
+.recovery-group-label,
+.recovery-file-row span,
 .org-map-meta,
 .provider-notice,
 .summary-body small,
@@ -219,6 +222,71 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.recovery-panel {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.recovery-status {
+  display: grid;
+  gap: 5px;
+  padding: 11px 0 11px 12px;
+  border-left: 4px solid var(--line-strong);
+}
+
+.recovery-status strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.recovery-info {
+  border-left-color: var(--blue);
+}
+
+.recovery-success {
+  border-left-color: var(--green);
+}
+
+.recovery-warning {
+  border-left-color: var(--amber);
+}
+
+.recovery-danger {
+  border-left-color: var(--red);
+}
+
+.recovery-actions,
+.recovery-action-group {
+  display: grid;
+  gap: 9px;
+}
+
+.recovery-group-label {
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recovery-step-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.42;
+}
+
+.recovery-step-list li {
+  overflow-wrap: anywhere;
+}
+
+.recovery-file-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
 }
 
 .project-form {

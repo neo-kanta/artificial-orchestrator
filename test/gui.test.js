@@ -221,6 +221,14 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.equal(snapshot.agentMessages[0].status, "blocked");
   assert.deepEqual(snapshot.agentMessages[0].blockers, ["missing credentials"]);
   assert.match(snapshot.agentMessages[0].handoff, /credentials need to be configured/);
+  assert.equal(snapshot.recovery.title, "Run blocked");
+  assert.equal(snapshot.recovery.severity, "danger");
+  assert.equal(snapshot.recovery.summary, "reviewer stopped on: missing credentials");
+  assert.equal(snapshot.recovery.nextSteps[0], "Resolve blocker: missing credentials");
+  assert.deepEqual(
+    snapshot.recovery.files.map((file) => file.key).slice(0, 4),
+    ["providerState", "status", "handoff", "transcript"]
+  );
 });
 
 test("gui state exposes recent runs and can load a selected session", async (t) => {

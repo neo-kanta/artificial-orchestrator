@@ -25,6 +25,7 @@ Application services are the boundary where project registry, config, runtime fl
 
 - `src/domain/run-status.js` normalizes provider/run statuses and blocker/provider-state projections.
 - `src/domain/handoff.js` extracts durable handoffs from structured or text provider output.
+- `src/domain/recovery.js` turns public run snapshots into GUI recovery guidance and prioritized durable file actions.
 
 Domain helpers are deterministic and do not touch the filesystem or spawn providers.
 
