@@ -6,6 +6,7 @@ import {
   renderAgentChat,
   renderAgentRoles,
   renderLauncher,
+  renderLaunchReadiness,
   renderOrgMap,
   renderOrgChoices,
   renderProjects,
@@ -17,18 +18,32 @@ import {
   selectedProject,
   setMessage
 } from "./view.js";
+import {
+  SIDEBAR_LIMITS,
+  SIDEBAR_STORAGE_KEY,
+  parseSidebarPreference,
+  serializeSidebarPreference,
+  setSidebarCollapsed,
+  setSidebarWidth,
+  sidebarCssWidth
+} from "./sidebar-state.js";
 
 const api = window.ao ?? null;
+const SIDEBAR_KEY_STEP = 16;
 
 let currentState = null;
 let selectedProjectName = null;
 let currentWorkspace = null;
 let selectedSessionId = null;
+let currentProcessState = { activeRun: null, lastRunError: null };
 let polling = null;
 let agentRoles = [];
 let agentRosterDirty = false;
 let selectedAgentId = null;
+let sidebarState = loadSidebarState();
+let sidebarDrag = null;
 
+applySidebarState();
 bindEvents();
 
 if (api) {
@@ -44,6 +59,7 @@ if (api) {
 }
 
 function bindEvents() {
+  bindSidebarEvents();
   elements.refreshButton.addEventListener("click", () => refreshState());
   elements.browseButton.addEventListener("click", chooseProjectPath);
   elements.projectForm.addEventListener("submit", addProject);
@@ -55,13 +71,160 @@ function bindEvents() {
   elements.providerList.addEventListener("change", () => {
     if (!elements.orgSelect.value) seedAgentRolesFromSelection(true);
     renderCurrentOrgMap();
+    renderLaunchState();
   });
+  elements.goalInput.addEventListener("input", renderLaunchState);
+  elements.roundsInput.addEventListener("input", renderLaunchState);
+  elements.claudeToolsToggle.addEventListener("change", renderLaunchState);
+  for (const input of [elements.permissionPlan, elements.permissionWorkspace, elements.permissionTrusted]) {
+    input.addEventListener("change", renderLaunchState);
+  }
   elements.startButton.addEventListener("click", startRun);
+}
+
+function bindSidebarEvents() {
+  elements.sidebarToggle.addEventListener("click", () => {
+    sidebarState = setSidebarCollapsed(sidebarState, !sidebarState.collapsed);
+    persistSidebarState();
+    applySidebarState();
+  });
+  elements.sidebarResizer.addEventListener("pointerdown", startSidebarDrag);
+  elements.sidebarResizer.addEventListener("mousedown", startSidebarMouseDrag);
+  elements.sidebarResizer.addEventListener("keydown", resizeSidebarWithKeyboard);
+}
+
+function startSidebarDrag(event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+
+  sidebarDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startWidth: sidebarState.width
+  };
+  sidebarState = setSidebarCollapsed(sidebarState, false);
+  applySidebarState();
+
+  document.body.classList.add("resizing-rail");
+  elements.sidebarResizer.setPointerCapture(event.pointerId);
+  elements.sidebarResizer.addEventListener("pointermove", dragSidebar);
+  elements.sidebarResizer.addEventListener("pointerup", stopSidebarDrag);
+  elements.sidebarResizer.addEventListener("pointercancel", stopSidebarDrag);
+}
+
+function startSidebarMouseDrag(event) {
+  if (event.button !== 0 || sidebarDrag) return;
+  event.preventDefault();
+
+  sidebarDrag = {
+    type: "mouse",
+    startX: event.clientX,
+    startWidth: sidebarState.width
+  };
+  sidebarState = setSidebarCollapsed(sidebarState, false);
+  applySidebarState();
+
+  document.body.classList.add("resizing-rail");
+  document.addEventListener("mousemove", dragSidebarWithMouse);
+  document.addEventListener("mouseup", stopSidebarMouseDrag);
+}
+
+function dragSidebar(event) {
+  if (!sidebarDrag || event.pointerId !== sidebarDrag.pointerId) return;
+  sidebarState = setSidebarWidth(sidebarState, sidebarDrag.startWidth + event.clientX - sidebarDrag.startX);
+  applySidebarState();
+}
+
+function dragSidebarWithMouse(event) {
+  if (!sidebarDrag || sidebarDrag.type !== "mouse") return;
+  sidebarState = setSidebarWidth(sidebarState, sidebarDrag.startWidth + event.clientX - sidebarDrag.startX);
+  applySidebarState();
+}
+
+function stopSidebarDrag(event) {
+  if (!sidebarDrag || event.pointerId !== sidebarDrag.pointerId) return;
+  elements.sidebarResizer.removeEventListener("pointermove", dragSidebar);
+  elements.sidebarResizer.removeEventListener("pointerup", stopSidebarDrag);
+  elements.sidebarResizer.removeEventListener("pointercancel", stopSidebarDrag);
+  if (elements.sidebarResizer.hasPointerCapture(event.pointerId)) {
+    elements.sidebarResizer.releasePointerCapture(event.pointerId);
+  }
+  sidebarDrag = null;
+  document.body.classList.remove("resizing-rail");
+  persistSidebarState();
+}
+
+function stopSidebarMouseDrag() {
+  if (!sidebarDrag || sidebarDrag.type !== "mouse") return;
+  document.removeEventListener("mousemove", dragSidebarWithMouse);
+  document.removeEventListener("mouseup", stopSidebarMouseDrag);
+  sidebarDrag = null;
+  document.body.classList.remove("resizing-rail");
+  persistSidebarState();
+}
+
+function resizeSidebarWithKeyboard(event) {
+  const step = event.shiftKey ? SIDEBAR_KEY_STEP * 3 : SIDEBAR_KEY_STEP;
+  let nextState = null;
+
+  if (event.key === "ArrowLeft") {
+    nextState = setSidebarWidth(sidebarState, sidebarState.width - step);
+  } else if (event.key === "ArrowRight") {
+    nextState = sidebarState.collapsed ? setSidebarCollapsed(sidebarState, false) : setSidebarWidth(sidebarState, sidebarState.width + step);
+  } else if (event.key === "Home") {
+    nextState = setSidebarWidth(sidebarState, SIDEBAR_LIMITS.min);
+  } else if (event.key === "End") {
+    nextState = setSidebarWidth(sidebarState, SIDEBAR_LIMITS.max);
+  } else if (event.key === "Enter" || event.key === " ") {
+    nextState = setSidebarCollapsed(sidebarState, !sidebarState.collapsed);
+  }
+
+  if (!nextState) return;
+  event.preventDefault();
+  sidebarState = nextState;
+  persistSidebarState();
+  applySidebarState();
+}
+
+function applySidebarState() {
+  const width = sidebarCssWidth(sidebarState);
+  elements.shell.style.setProperty("--rail-width", `${width}px`);
+  elements.shell.classList.toggle("rail-collapsed", sidebarState.collapsed);
+  elements.projectSidebar.dataset.sidebar = sidebarState.collapsed ? "collapsed" : "expanded";
+  elements.sidebarToggle.textContent = sidebarState.collapsed ? ">>" : "<<";
+  elements.sidebarToggle.setAttribute("aria-expanded", String(!sidebarState.collapsed));
+  elements.sidebarToggle.setAttribute("aria-label", sidebarState.collapsed ? "Expand project sidebar" : "Collapse project sidebar");
+  elements.sidebarToggle.title = sidebarState.collapsed ? "Expand project sidebar" : "Collapse project sidebar";
+  elements.sidebarResizer.setAttribute("aria-valuenow", String(sidebarState.width));
+  elements.sidebarResizer.setAttribute(
+    "aria-valuetext",
+    sidebarState.collapsed ? `Collapsed, saved width ${sidebarState.width} pixels` : `${sidebarState.width} pixels`
+  );
+}
+
+function loadSidebarState() {
+  try {
+    return parseSidebarPreference(localStorage.getItem(SIDEBAR_STORAGE_KEY));
+  } catch {
+    return parseSidebarPreference(null);
+  }
+}
+
+function persistSidebarState() {
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, serializeSidebarPreference(sidebarState));
+  } catch {
+    // Local storage can be unavailable in constrained browser contexts.
+  }
 }
 
 async function refreshState() {
   setMessage(elements, "");
   currentState = await api.state();
+  currentProcessState = {
+    activeRun: currentState.activeRun ?? null,
+    lastRunError: currentState.lastRunError ?? null
+  };
   selectedProjectName ??= currentState.activeProject?.name ?? currentState.projects[0]?.name ?? null;
 
   renderProjects(elements, currentState.projects, selectedProjectName, selectProject);
@@ -85,6 +248,7 @@ async function refreshState() {
     selectedSessionId ?? currentState.run?.id ?? null,
     selectHistoryRun
   );
+  renderLaunchState();
 
   currentWorkspace = activeProject()?.path ?? currentState.workspace;
   await refreshLiveState();
@@ -93,6 +257,7 @@ async function refreshState() {
 async function refreshLiveState() {
   if (!api) return;
   const processState = await api.runProcess();
+  currentProcessState = processState;
   if (processState.activeRun) {
     currentWorkspace = processState.activeRun.workspace;
     selectedSessionId = null;
@@ -115,6 +280,7 @@ async function refreshLiveState() {
   } catch (error) {
     if (processState.lastRunError) setMessage(elements, processState.lastRunError.message, true);
   }
+  renderLaunchState();
 }
 
 async function selectProject(project) {
@@ -150,28 +316,44 @@ async function addProject(event) {
 async function startRun() {
   const input = launchInput(elements);
   const project = activeProject();
+  const validation = renderLaunchState();
 
-  if (!project) return setMessage(elements, "Select a project before starting.", true);
-  if (!input.goal) return setMessage(elements, "Enter a goal before starting.", true);
-  if (!input.orgName && input.providerIds.length === 0 && agentRoles.length === 0) return setMessage(elements, "Select at least one provider.", true);
+  if (!validation.ok) return;
+  if (currentProcessState.activeRun) return;
 
   elements.startButton.disabled = true;
+  elements.startButton.textContent = "Starting...";
   selectedSessionId = null;
   selectedAgentId = null;
   setMessage(elements, "Starting run...");
+  let failedToStart = false;
   try {
-    await api.startRun({
+    const result = await api.startRun({
       projectName: project.name,
       ...(agentRosterDirty ? { agentRoles: launchAgentRoles(), agentOrgLabel: customOrgLabel() } : {}),
       ...input
     });
+    currentProcessState = {
+      activeRun: result.activeRun ?? null,
+      lastRunError: null
+    };
     currentWorkspace = project.path;
     await refreshLiveState();
     setMessage(elements, "");
   } catch (error) {
-    setMessage(elements, error.message, true);
+    failedToStart = true;
+    const message = error?.message ?? String(error);
+    currentProcessState = {
+      activeRun: null,
+      lastRunError: {
+        at: new Date().toISOString(),
+        message
+      }
+    };
+    renderLaunchState();
+    setMessage(elements, message, true);
   } finally {
-    elements.startButton.disabled = false;
+    if (!failedToStart) renderLaunchState();
   }
 }
 
@@ -223,6 +405,7 @@ function renderAgentRoster() {
       agentRoles = normalizeRoleDrafts(roles);
       agentRosterDirty = true;
       renderCurrentOrgMap();
+      renderLaunchState();
     },
     addAgentRole,
     removeAgentRole
@@ -291,6 +474,7 @@ function addAgentRole() {
   agentRosterDirty = true;
   renderAgentRoster();
   renderCurrentOrgMap();
+  renderLaunchState();
 }
 
 function removeAgentRole(index) {
@@ -299,6 +483,7 @@ function removeAgentRole(index) {
   agentRosterDirty = true;
   renderAgentRoster();
   renderCurrentOrgMap();
+  renderLaunchState();
 }
 
 function launchAgentRoles() {
@@ -368,6 +553,20 @@ function uniqueRoleId(base, seen = new Set(agentRoles.map((role) => role.id))) {
     suffix += 1;
   }
   return id;
+}
+
+function renderLaunchState() {
+  return renderLaunchReadiness(
+    elements,
+    launchInput(elements),
+    {
+      project: activeProject(),
+      providers: currentState?.providers ?? [],
+      orgs: currentState?.orgs ?? [],
+      agentRoles: agentRosterDirty ? agentRoles : []
+    },
+    currentProcessState
+  );
 }
 
 window.addEventListener("beforeunload", () => {
