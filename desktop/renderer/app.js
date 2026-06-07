@@ -18,8 +18,18 @@ import {
   selectedProject,
   setMessage
 } from "./view.js";
+import {
+  SIDEBAR_LIMITS,
+  SIDEBAR_STORAGE_KEY,
+  parseSidebarPreference,
+  serializeSidebarPreference,
+  setSidebarCollapsed,
+  setSidebarWidth,
+  sidebarCssWidth
+} from "./sidebar-state.js";
 
 const api = window.ao ?? null;
+const SIDEBAR_KEY_STEP = 16;
 
 let currentState = null;
 let selectedProjectName = null;
@@ -30,7 +40,10 @@ let polling = null;
 let agentRoles = [];
 let agentRosterDirty = false;
 let selectedAgentId = null;
+let sidebarState = loadSidebarState();
+let sidebarDrag = null;
 
+applySidebarState();
 bindEvents();
 
 if (api) {
@@ -46,6 +59,7 @@ if (api) {
 }
 
 function bindEvents() {
+  bindSidebarEvents();
   elements.refreshButton.addEventListener("click", () => refreshState());
   elements.browseButton.addEventListener("click", chooseProjectPath);
   elements.projectForm.addEventListener("submit", addProject);
@@ -66,6 +80,142 @@ function bindEvents() {
     input.addEventListener("change", renderLaunchState);
   }
   elements.startButton.addEventListener("click", startRun);
+}
+
+function bindSidebarEvents() {
+  elements.sidebarToggle.addEventListener("click", () => {
+    sidebarState = setSidebarCollapsed(sidebarState, !sidebarState.collapsed);
+    persistSidebarState();
+    applySidebarState();
+  });
+  elements.sidebarResizer.addEventListener("pointerdown", startSidebarDrag);
+  elements.sidebarResizer.addEventListener("mousedown", startSidebarMouseDrag);
+  elements.sidebarResizer.addEventListener("keydown", resizeSidebarWithKeyboard);
+}
+
+function startSidebarDrag(event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+
+  sidebarDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startWidth: sidebarState.width
+  };
+  sidebarState = setSidebarCollapsed(sidebarState, false);
+  applySidebarState();
+
+  document.body.classList.add("resizing-rail");
+  elements.sidebarResizer.setPointerCapture(event.pointerId);
+  elements.sidebarResizer.addEventListener("pointermove", dragSidebar);
+  elements.sidebarResizer.addEventListener("pointerup", stopSidebarDrag);
+  elements.sidebarResizer.addEventListener("pointercancel", stopSidebarDrag);
+}
+
+function startSidebarMouseDrag(event) {
+  if (event.button !== 0 || sidebarDrag) return;
+  event.preventDefault();
+
+  sidebarDrag = {
+    type: "mouse",
+    startX: event.clientX,
+    startWidth: sidebarState.width
+  };
+  sidebarState = setSidebarCollapsed(sidebarState, false);
+  applySidebarState();
+
+  document.body.classList.add("resizing-rail");
+  document.addEventListener("mousemove", dragSidebarWithMouse);
+  document.addEventListener("mouseup", stopSidebarMouseDrag);
+}
+
+function dragSidebar(event) {
+  if (!sidebarDrag || event.pointerId !== sidebarDrag.pointerId) return;
+  sidebarState = setSidebarWidth(sidebarState, sidebarDrag.startWidth + event.clientX - sidebarDrag.startX);
+  applySidebarState();
+}
+
+function dragSidebarWithMouse(event) {
+  if (!sidebarDrag || sidebarDrag.type !== "mouse") return;
+  sidebarState = setSidebarWidth(sidebarState, sidebarDrag.startWidth + event.clientX - sidebarDrag.startX);
+  applySidebarState();
+}
+
+function stopSidebarDrag(event) {
+  if (!sidebarDrag || event.pointerId !== sidebarDrag.pointerId) return;
+  elements.sidebarResizer.removeEventListener("pointermove", dragSidebar);
+  elements.sidebarResizer.removeEventListener("pointerup", stopSidebarDrag);
+  elements.sidebarResizer.removeEventListener("pointercancel", stopSidebarDrag);
+  if (elements.sidebarResizer.hasPointerCapture(event.pointerId)) {
+    elements.sidebarResizer.releasePointerCapture(event.pointerId);
+  }
+  sidebarDrag = null;
+  document.body.classList.remove("resizing-rail");
+  persistSidebarState();
+}
+
+function stopSidebarMouseDrag() {
+  if (!sidebarDrag || sidebarDrag.type !== "mouse") return;
+  document.removeEventListener("mousemove", dragSidebarWithMouse);
+  document.removeEventListener("mouseup", stopSidebarMouseDrag);
+  sidebarDrag = null;
+  document.body.classList.remove("resizing-rail");
+  persistSidebarState();
+}
+
+function resizeSidebarWithKeyboard(event) {
+  const step = event.shiftKey ? SIDEBAR_KEY_STEP * 3 : SIDEBAR_KEY_STEP;
+  let nextState = null;
+
+  if (event.key === "ArrowLeft") {
+    nextState = setSidebarWidth(sidebarState, sidebarState.width - step);
+  } else if (event.key === "ArrowRight") {
+    nextState = sidebarState.collapsed ? setSidebarCollapsed(sidebarState, false) : setSidebarWidth(sidebarState, sidebarState.width + step);
+  } else if (event.key === "Home") {
+    nextState = setSidebarWidth(sidebarState, SIDEBAR_LIMITS.min);
+  } else if (event.key === "End") {
+    nextState = setSidebarWidth(sidebarState, SIDEBAR_LIMITS.max);
+  } else if (event.key === "Enter" || event.key === " ") {
+    nextState = setSidebarCollapsed(sidebarState, !sidebarState.collapsed);
+  }
+
+  if (!nextState) return;
+  event.preventDefault();
+  sidebarState = nextState;
+  persistSidebarState();
+  applySidebarState();
+}
+
+function applySidebarState() {
+  const width = sidebarCssWidth(sidebarState);
+  elements.shell.style.setProperty("--rail-width", `${width}px`);
+  elements.shell.classList.toggle("rail-collapsed", sidebarState.collapsed);
+  elements.projectSidebar.dataset.sidebar = sidebarState.collapsed ? "collapsed" : "expanded";
+  elements.sidebarToggle.textContent = sidebarState.collapsed ? ">>" : "<<";
+  elements.sidebarToggle.setAttribute("aria-expanded", String(!sidebarState.collapsed));
+  elements.sidebarToggle.setAttribute("aria-label", sidebarState.collapsed ? "Expand project sidebar" : "Collapse project sidebar");
+  elements.sidebarToggle.title = sidebarState.collapsed ? "Expand project sidebar" : "Collapse project sidebar";
+  elements.sidebarResizer.setAttribute("aria-valuenow", String(sidebarState.width));
+  elements.sidebarResizer.setAttribute(
+    "aria-valuetext",
+    sidebarState.collapsed ? `Collapsed, saved width ${sidebarState.width} pixels` : `${sidebarState.width} pixels`
+  );
+}
+
+function loadSidebarState() {
+  try {
+    return parseSidebarPreference(localStorage.getItem(SIDEBAR_STORAGE_KEY));
+  } catch {
+    return parseSidebarPreference(null);
+  }
+}
+
+function persistSidebarState() {
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, serializeSidebarPreference(sidebarState));
+  } catch {
+    // Local storage can be unavailable in constrained browser contexts.
+  }
 }
 
 async function refreshState() {

@@ -31,6 +31,7 @@ The app uses the same project registry, provider configuration, organization pre
 
 - See the active project and workspace path.
 - Add, list, and switch projects.
+- Collapse or expand the project sidebar, and drag its edge to resize it.
 - Enter a goal, choose a provider pipeline or organization preset, and set rounds.
 - See a live run summary and readiness check before the Start button is enabled.
 - Review provider metadata, selected permissions, Claude tool access, and run shape in one place.

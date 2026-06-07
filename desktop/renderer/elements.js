@@ -1,4 +1,8 @@
 export const elements = {
+  shell: document.querySelector("#app-shell"),
+  projectSidebar: document.querySelector("#project-sidebar"),
+  sidebarToggle: document.querySelector("#sidebar-toggle"),
+  sidebarResizer: document.querySelector("#sidebar-resizer"),
   activeProjectLabel: document.querySelector("#active-project-label"),
   projectList: document.querySelector("#project-list"),
   projectForm: document.querySelector("#project-form"),

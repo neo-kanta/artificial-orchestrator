@@ -11,14 +11,25 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
-      <aside class="rail">
+    <div id="app-shell" class="shell">
+      <aside id="project-sidebar" class="rail" aria-label="Project sidebar">
         <header class="brand">
           <div class="brand-mark">AO</div>
-          <div>
+          <div class="brand-copy">
             <h1>Artificial Orchestrator</h1>
             <p id="active-project-label">No active project</p>
           </div>
+          <button
+            id="sidebar-toggle"
+            class="sidebar-toggle"
+            type="button"
+            aria-controls="project-sidebar"
+            aria-expanded="true"
+            aria-label="Collapse project sidebar"
+            title="Collapse project sidebar"
+          >
+            &lt;&lt;
+          </button>
         </header>
 
         <section class="project-panel">
@@ -43,6 +54,17 @@
           </label>
           <button class="primary-button" type="submit">Add project</button>
         </form>
+        <div
+          id="sidebar-resizer"
+          class="sidebar-resizer"
+          role="separator"
+          aria-controls="project-sidebar"
+          aria-label="Resize project sidebar"
+          aria-orientation="vertical"
+          aria-valuemin="220"
+          aria-valuemax="420"
+          tabindex="0"
+        ></div>
       </aside>
 
       <main class="workspace">
