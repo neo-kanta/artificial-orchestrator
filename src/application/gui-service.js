@@ -7,6 +7,7 @@ import { runDuet } from "../orchestrator.js";
 import { addProject, currentProject, listProjects, useProject } from "../projects.js";
 import { latestStatus, recentStatuses, statusForSession } from "../status.js";
 import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
+import { recoveryCenterForRun } from "../domain/recovery.js";
 import { prepareRunOptions } from "./run-options.js";
 import { assertDirectory, readTail } from "../shared/workspace.js";
 import { compactText } from "../shared/text.js";
@@ -72,7 +73,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
   const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
   const final = run.status?.final ?? run.providerState?.final ?? null;
 
-  return {
+  const snapshot = {
     id: runId(run),
     session: run.session,
     goal: run.status?.goal ?? run.providerState?.goal ?? "",
@@ -91,6 +92,10 @@ export async function guiRunSnapshot(workspace, options = {}) {
     handoff,
     agentMessages,
     org: publicOrgState(run.orgState)
+  };
+  return {
+    ...snapshot,
+    recovery: recoveryCenterForRun(snapshot)
   };
 }
 

@@ -54,6 +54,17 @@
             </div>
             <div id="phase-badge" class="phase-badge phase-idle">idle</div>
           </div>
+          <div id="process-banner" class="process-banner" hidden></div>
+
+          <section class="quick-start-panel" aria-label="Run setup progress">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Start guide</p>
+                <h3>Run setup</h3>
+              </div>
+            </div>
+            <div id="quick-start-list" class="quick-start-list"></div>
+          </section>
 
           <label class="goal-label">
             Goal
@@ -73,12 +84,14 @@
             </label>
           </div>
 
-          <section class="agent-roster-panel" aria-label="Agent roles and models">
-            <div class="section-heading">
+          <details class="agent-roster-panel" aria-label="Agent roles and models">
+            <summary class="section-heading">
               <div>
                 <p class="eyebrow">Agent roster</p>
                 <h3>Roles and models</h3>
               </div>
+            </summary>
+            <div class="agent-roster-actions">
               <button id="add-agent-button" class="ghost-button" type="button">Add agent</button>
             </div>
             <div id="agent-role-list" class="agent-role-list"></div>
@@ -86,7 +99,7 @@
               <input id="shared-context-toggle" type="checkbox" checked />
               <span>Share all context across agents</span>
             </label>
-          </section>
+          </details>
 
           <section class="org-map-panel" aria-label="Organization structure">
             <div class="section-heading">
@@ -100,7 +113,10 @@
           </section>
 
           <div>
-            <div class="field-label">Providers</div>
+            <div class="provider-head">
+              <div class="field-label">Providers</div>
+              <p id="provider-notice" class="provider-notice"></p>
+            </div>
             <div id="provider-list" class="provider-list"></div>
           </div>
 
@@ -126,6 +142,16 @@
               </div>
             </div>
             <label class="tool-permission"><input id="claude-tools-toggle" type="checkbox" /> Allow Claude tools</label>
+          </section>
+
+          <section class="launch-summary" aria-label="Run summary">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Run summary</p>
+                <h3>Ready check</h3>
+              </div>
+            </div>
+            <div id="launch-summary-list" class="summary-list"></div>
           </section>
 
           <div class="launch-actions">
@@ -180,6 +206,15 @@
       </main>
 
       <aside class="inspector">
+        <section class="recovery-panel">
+          <p class="eyebrow">Recovery center</p>
+          <div id="recovery-status" class="recovery-status recovery-neutral">
+            <strong id="recovery-title">No run loaded</strong>
+            <span id="recovery-summary">Start or load a run to see next actions.</span>
+          </div>
+          <div id="recovery-actions" class="recovery-actions"></div>
+        </section>
+
         <section>
           <p class="eyebrow">Provider state</p>
           <div id="provider-state" class="state-list"></div>

@@ -31,12 +31,19 @@ The app uses the same project registry, provider configuration, organization pre
 
 - See the active project and workspace path.
 - Add, list, and switch projects.
+- Browse to a workspace and auto-fill a project name from the folder.
 - Enter a goal, choose a provider pipeline or organization preset, and set rounds.
+- See a live run summary and readiness check before the Start button is enabled.
+- Follow a setup checklist that shows the next missing launcher step.
+- Review provider metadata, selected permissions, Claude tool access, and run shape in one place.
+- Keep custom agent role/model editing available without making it the default setup path.
 - Visualize an organization preset as role nodes with animated handoff paths between agents.
 - Inspect role status, active handoff, and role-level blockers directly on the organization map.
 - Choose explicit run permissions: plan-only, workspace edit, trusted full access, and Claude tools.
 - Start a run for the selected project.
+- See active run and last run failure banners without opening terminal output.
 - Watch the latest transcript and phase updates while the run is active.
+- Use the Recovery Center to see blocked, running, done, or round-limited run guidance with prioritized next actions.
 - Browse recent durable runs for the selected project and reload an older run's transcript/status from its session files.
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.
 

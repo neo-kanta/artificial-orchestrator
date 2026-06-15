@@ -1,3 +1,5 @@
+import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
+
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
   const project = selectProject(projects, selectedProjectName);
   elements.activeProjectLabel.textContent = project ? `${project.name} - ${project.path}` : "No active project";
@@ -41,10 +43,15 @@ export function renderProviderChoices(elements, providers, selectedProviderIds) 
     input.value = provider.id;
     input.checked = selectedProviderIds.length > 0 ? selectedProviderIds.includes(provider.id) : ["claude", "codex"].includes(provider.id);
 
+    const copy = document.createElement("span");
+    copy.className = "provider-copy";
     const text = document.createElement("span");
-    text.textContent = `${provider.label} (${provider.kind})`;
+    text.textContent = provider.label;
+    const meta = document.createElement("small");
+    meta.textContent = providerMeta(provider);
+    copy.append(text, meta);
 
-    label.append(input, text);
+    label.append(input, copy);
     elements.providerList.append(label);
   }
 
@@ -146,8 +153,54 @@ export function readAgentRoles(elements, existingRoles = []) {
 
 export function renderProviderDisabledState(elements) {
   const disabled = Boolean(elements.orgSelect.value);
-  for (const input of elements.providerList.querySelectorAll("input")) {
+  elements.providerNotice.textContent = selectedProviderNotice(launchInput(elements));
+  for (const label of elements.providerList.querySelectorAll(".provider-choice")) {
+    const input = label.querySelector("input");
     input.disabled = disabled;
+    label.classList.toggle("disabled", disabled);
+  }
+}
+
+export function renderLaunchReadiness(elements, input, context = {}, processState = {}) {
+  const validation = validateLaunch(input, context);
+  const activeRun = processState.activeRun ?? null;
+  const isActive = Boolean(activeRun);
+
+  elements.startButton.disabled = isActive || !validation.ok;
+  elements.startButton.textContent = launchActionLabel(input, context, processState);
+  renderProcessBanner(elements, processState);
+  renderQuickStart(elements, launchSteps(input, context, processState));
+  renderSummary(elements, launchSummary(input, context));
+
+  if (isActive) {
+    setMessage(elements, "A run is active. Monitor is updating.");
+  } else {
+    setMessage(elements, validation.message, !validation.ok);
+  }
+
+  return validation;
+}
+
+function renderQuickStart(elements, steps) {
+  elements.quickStartList.replaceChildren();
+  for (const [index, step] of steps.entries()) {
+    const item = document.createElement("div");
+    item.className = `quick-start-step step-${step.status}`;
+
+    const marker = document.createElement("span");
+    marker.className = "quick-start-marker";
+    marker.textContent = step.status === "done" ? "OK" : String(index + 1);
+
+    const body = document.createElement("span");
+    body.className = "quick-start-body";
+    const label = document.createElement("strong");
+    label.textContent = step.label;
+    const detail = document.createElement("small");
+    detail.textContent = step.detail;
+    body.append(label, detail);
+
+    item.append(marker, body);
+    elements.quickStartList.append(item);
   }
 }
 
@@ -252,6 +305,7 @@ export function renderRun(elements, run, openPath) {
   elements.transcriptView.textContent = run?.transcript ?? "";
   elements.handoffView.textContent = run?.latestHandoff || run?.handoff || "";
 
+  renderRecovery(elements, run?.recovery ?? null, openPath);
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
   renderFiles(elements, run?.files ?? {}, openPath);
@@ -481,6 +535,65 @@ function renderStateList(elements, providers) {
   }
 }
 
+function renderRecovery(elements, recovery, openPath) {
+  const state = recovery ?? {
+    severity: "neutral",
+    title: "No run loaded",
+    summary: "Start or load a run to see next actions.",
+    nextSteps: ["Select a project, enter a goal, and start a run."],
+    files: []
+  };
+
+  elements.recoveryStatus.className = `recovery-status recovery-${state.severity ?? "neutral"}`;
+  elements.recoveryTitle.textContent = state.title ?? "Run state";
+  elements.recoverySummary.textContent = state.summary ?? "";
+  elements.recoveryActions.replaceChildren();
+
+  const nextSteps = Array.isArray(state.nextSteps) ? state.nextSteps.filter(Boolean) : [];
+  if (nextSteps.length > 0) {
+    const group = document.createElement("div");
+    group.className = "recovery-action-group";
+    const label = document.createElement("span");
+    label.className = "recovery-group-label";
+    label.textContent = "Next actions";
+    const list = document.createElement("ol");
+    list.className = "recovery-step-list";
+    for (const step of nextSteps) {
+      const item = document.createElement("li");
+      item.textContent = step;
+      list.append(item);
+    }
+    group.append(label, list);
+    elements.recoveryActions.append(group);
+  }
+
+  const files = Array.isArray(state.files) ? state.files.filter((file) => file?.path) : [];
+  if (files.length > 0) {
+    const group = document.createElement("div");
+    group.className = "recovery-action-group";
+    const label = document.createElement("span");
+    label.className = "recovery-group-label";
+    label.textContent = "Priority files";
+    group.append(label);
+
+    for (const file of files) {
+      const row = document.createElement("div");
+      row.className = "recovery-file-row";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "ghost-button";
+      button.textContent = file.label ?? file.key ?? "Open";
+      button.addEventListener("click", () => openPath(file.path));
+      const detail = document.createElement("span");
+      detail.textContent = file.detail ?? file.path;
+      row.append(button, detail);
+      group.append(row);
+    }
+
+    elements.recoveryActions.append(group);
+  }
+}
+
 function renderBlockers(elements, blockers) {
   elements.blockerList.replaceChildren();
   if (blockers.length === 0) {
@@ -525,6 +638,50 @@ function renderFiles(elements, files, openPath) {
     row.append(button, text);
     elements.fileList.append(row);
   }
+}
+
+function renderProcessBanner(elements, processState = {}) {
+  const activeRun = processState.activeRun ?? null;
+  const lastRunError = processState.lastRunError ?? null;
+  elements.processBanner.hidden = !activeRun && !lastRunError;
+
+  if (activeRun) {
+    const project = activeRun.project?.name ?? activeRun.workspace;
+    elements.processBanner.className = "process-banner running";
+    elements.processBanner.textContent = `Running ${project} since ${activeRun.startedAt}.`;
+    return;
+  }
+
+  if (lastRunError) {
+    elements.processBanner.className = "process-banner error";
+    elements.processBanner.textContent = `Last run failed: ${firstLine(lastRunError.message)}`;
+  }
+}
+
+function renderSummary(elements, items) {
+  elements.launchSummaryList.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "summary-row";
+    const label = document.createElement("span");
+    label.className = "summary-label";
+    label.textContent = item.label;
+    const body = document.createElement("span");
+    body.className = "summary-body";
+    const value = document.createElement("strong");
+    value.textContent = item.value;
+    const detail = document.createElement("small");
+    detail.textContent = item.detail;
+    body.append(value, detail);
+    row.append(label, body);
+    elements.launchSummaryList.append(row);
+  }
+}
+
+function providerMeta(provider) {
+  return [provider.kind, provider.role && provider.role !== "provider" ? provider.role : null, provider.model, provider.configured ? "configured" : null]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 function agentChatAgents(run) {
@@ -862,6 +1019,12 @@ function compactTimes(run) {
   return [run.startedAt ? `started ${run.startedAt}` : null, run.updatedAt ? `updated ${run.updatedAt}` : null, run.completedAt ? `completed ${run.completedAt}` : null]
     .filter(Boolean)
     .join(" | ");
+}
+
+function firstLine(value) {
+  return String(value ?? "")
+    .split(/\r?\n/)
+    .find(Boolean) ?? "Unknown error.";
 }
 
 function option(value, label) {
