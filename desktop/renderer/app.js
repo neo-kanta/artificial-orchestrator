@@ -1,4 +1,5 @@
 import { elements } from "./elements.js";
+import { projectNameFromPath } from "./project-name.js";
 import {
   checkedProviderIds,
   clearProjectForm,
@@ -32,6 +33,7 @@ let agentRosterDirty = false;
 let selectedAgentId = null;
 
 bindEvents();
+renderLaunchState();
 
 if (api) {
   refreshState();
@@ -144,7 +146,9 @@ async function selectProject(project) {
 async function chooseProjectPath() {
   if (!api) return;
   const path = await api.chooseDirectory();
-  if (path) elements.projectPath.value = path;
+  if (!path) return;
+  elements.projectPath.value = path;
+  if (!elements.projectName.value.trim()) elements.projectName.value = projectNameFromPath(path);
 }
 
 async function addProject(event) {

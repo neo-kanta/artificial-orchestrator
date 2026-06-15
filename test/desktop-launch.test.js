@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
+import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
+import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
 const project = {
   name: "demo",
@@ -125,4 +126,55 @@ test("desktop launch summary supports custom agent rosters", () => {
     { project, agentRoles: [{ id: "research" }] }
   );
   assert.equal(ready.ok, true);
+});
+
+test("desktop launch checklist and action label point to the next missing setup step", () => {
+  assert.equal(
+    launchActionLabel(
+      {
+        goal: "",
+        rounds: 2,
+        providerIds: []
+      },
+      { project: null }
+    ),
+    "Select project"
+  );
+
+  assert.equal(
+    launchActionLabel(
+      {
+        goal: "",
+        rounds: 2,
+        providerIds: ["codex"]
+      },
+      { project }
+    ),
+    "Enter goal"
+  );
+
+  const readyInput = {
+    goal: "Ship a clearer launcher",
+    rounds: 2,
+    providerIds: ["codex"]
+  };
+  const steps = launchSteps(readyInput, { project, providers });
+  assert.deepEqual(
+    steps.map((step) => [step.label, step.status]),
+    [
+      ["Project", "done"],
+      ["Goal", "done"],
+      ["Team", "done"],
+      ["Start", "done"]
+    ]
+  );
+  assert.equal(launchActionLabel(readyInput, { project, providers }), "Start run");
+  assert.equal(launchActionLabel(readyInput, { project, providers }, { activeRun: { workspace: project.path } }), "Run active");
+});
+
+test("desktop project browser infers a project name from the selected path", () => {
+  assert.equal(projectNameFromPath("C:\\Users\\kanta\\source\\repos\\artificial-orchestrator"), "artificial-orchestrator");
+  assert.equal(projectNameFromPath("C:\\Users\\kanta\\source\\repos\\ims-th-solution\\"), "ims-th-solution");
+  assert.equal(projectNameFromPath("/home/kanta/work/demo"), "demo");
+  assert.equal(projectNameFromPath(""), "");
 });

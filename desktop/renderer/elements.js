@@ -9,6 +9,7 @@ export const elements = {
   workspaceTitle: document.querySelector("#workspace-title"),
   phaseBadge: document.querySelector("#phase-badge"),
   processBanner: document.querySelector("#process-banner"),
+  quickStartList: document.querySelector("#quick-start-list"),
   goalInput: document.querySelector("#goal-input"),
   orgSelect: document.querySelector("#org-select"),
   roundsInput: document.querySelector("#rounds-input"),

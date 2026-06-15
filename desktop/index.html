@@ -56,6 +56,16 @@
           </div>
           <div id="process-banner" class="process-banner" hidden></div>
 
+          <section class="quick-start-panel" aria-label="Run setup progress">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Start guide</p>
+                <h3>Run setup</h3>
+              </div>
+            </div>
+            <div id="quick-start-list" class="quick-start-list"></div>
+          </section>
+
           <label class="goal-label">
             Goal
             <textarea id="goal-input" rows="5" placeholder="Describe the outcome to orchestrate"></textarea>
@@ -74,12 +84,14 @@
             </label>
           </div>
 
-          <section class="agent-roster-panel" aria-label="Agent roles and models">
-            <div class="section-heading">
+          <details class="agent-roster-panel" aria-label="Agent roles and models">
+            <summary class="section-heading">
               <div>
                 <p class="eyebrow">Agent roster</p>
                 <h3>Roles and models</h3>
               </div>
+            </summary>
+            <div class="agent-roster-actions">
               <button id="add-agent-button" class="ghost-button" type="button">Add agent</button>
             </div>
             <div id="agent-role-list" class="agent-role-list"></div>
@@ -87,7 +99,7 @@
               <input id="shared-context-toggle" type="checkbox" checked />
               <span>Share all context across agents</span>
             </label>
-          </section>
+          </details>
 
           <section class="org-map-panel" aria-label="Organization structure">
             <div class="section-heading">

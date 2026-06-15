@@ -1,4 +1,4 @@
-import { launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
+import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
 
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
   const project = selectProject(projects, selectedProjectName);
@@ -167,8 +167,9 @@ export function renderLaunchReadiness(elements, input, context = {}, processStat
   const isActive = Boolean(activeRun);
 
   elements.startButton.disabled = isActive || !validation.ok;
-  elements.startButton.textContent = isActive ? "Run active" : "Start run";
+  elements.startButton.textContent = launchActionLabel(input, context, processState);
   renderProcessBanner(elements, processState);
+  renderQuickStart(elements, launchSteps(input, context, processState));
   renderSummary(elements, launchSummary(input, context));
 
   if (isActive) {
@@ -178,6 +179,29 @@ export function renderLaunchReadiness(elements, input, context = {}, processStat
   }
 
   return validation;
+}
+
+function renderQuickStart(elements, steps) {
+  elements.quickStartList.replaceChildren();
+  for (const [index, step] of steps.entries()) {
+    const item = document.createElement("div");
+    item.className = `quick-start-step step-${step.status}`;
+
+    const marker = document.createElement("span");
+    marker.className = "quick-start-marker";
+    marker.textContent = step.status === "done" ? "OK" : String(index + 1);
+
+    const body = document.createElement("span");
+    body.className = "quick-start-body";
+    const label = document.createElement("strong");
+    label.textContent = step.label;
+    const detail = document.createElement("small");
+    detail.textContent = step.detail;
+    body.append(label, detail);
+
+    item.append(marker, body);
+    elements.quickStartList.append(item);
+  }
 }
 
 const ROLE_STATUS_CLASSES = [
