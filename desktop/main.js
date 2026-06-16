@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { runDuet } from "../src/orchestrator.js";
+import { runDuet } from "../src/orchestration/orchestrator.js";
 import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

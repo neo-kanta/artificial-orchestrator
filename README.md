@@ -238,7 +238,7 @@ For token scope guidance, see [GitHub Token Permissions](docs/github-token-permi
 - Orchestrator: session state, transcript, token/usage summaries, limit reset capture.
 - Default safety: Claude tools are disabled; Codex is read-only unless `--apply` is provided.
 
-For module boundaries and extension points, see [Architecture](docs/architecture.md).
+For module boundaries and extension points, see [Architecture](docs/architecture.md). For the current restructure notes and next-step handoff, see [Restructure Handoff](docs/restructure-handoff.md).
 
 ## Useful Options
 

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { loadConfig, providerRegistry } from "../config.js";
+import { loadConfig, providerRegistry } from "../platform/config.js";
 import { handoffForTurn } from "../domain/handoff.js";
-import { listOrgs } from "../orgs.js";
-import { runDuet } from "../orchestrator.js";
-import { addProject, currentProject, listProjects, useProject } from "../projects.js";
-import { latestStatus, recentStatuses, statusForSession } from "../status.js";
+import { listOrgs } from "../platform/orgs.js";
+import { runDuet } from "../orchestration/orchestrator.js";
+import { addProject, currentProject, listProjects, useProject } from "../platform/projects.js";
+import { latestStatus, recentStatuses, statusForSession } from "../orchestration/status-reader.js";
 import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
 import { recoveryCenterForRun } from "../domain/recovery.js";
 import { prepareRunOptions } from "./run-options.js";

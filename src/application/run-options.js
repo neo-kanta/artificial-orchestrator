@@ -1,7 +1,7 @@
-import { hydrateProvider, loadConfig, providerRegistry, resolveProviders } from "../config.js";
-import { resolveOrg } from "../orgs.js";
-import { resolveProjectContext } from "../projects.js";
-import { runtimeOptions } from "../runtime.js";
+import { hydrateProvider, loadConfig, providerRegistry, resolveProviders } from "../platform/config.js";
+import { resolveOrg } from "../platform/orgs.js";
+import { resolveProjectContext } from "../platform/projects.js";
+import { runtimeOptions } from "../platform/runtime.js";
 import { assertWorkspaceDirectory } from "../shared/workspace.js";
 
 export const DEFAULT_HISTORY_CHARS = 12000;
