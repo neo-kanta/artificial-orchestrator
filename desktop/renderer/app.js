@@ -1,4 +1,5 @@
 import { elements } from "./elements.js";
+import { renderSessionView, resizeComposer, setActiveView } from "./chat-view.js";
 import { projectNameFromPath } from "./project-name.js";
 import {
   checkedProviderIds,
@@ -31,9 +32,15 @@ let polling = null;
 let agentRoles = [];
 let agentRosterDirty = false;
 let selectedAgentId = null;
+let activeViewMode = storedViewMode();
+let sessionSearchQuery = "";
+let draftSession = false;
+let chatNotice = null;
 
 bindEvents();
+setViewMode(activeViewMode, false);
 renderLaunchState();
+renderCurrentSessionView();
 
 if (api) {
   refreshState();
@@ -44,30 +51,67 @@ if (api) {
   renderAgentChat(elements, null, null, () => {});
   elements.startButton.disabled = true;
   renderRunHistory(elements, [], null, () => {});
+  renderCurrentSessionView();
   setMessage(elements, "Desktop bridge unavailable.", true);
 }
 
 function bindEvents() {
   elements.refreshButton.addEventListener("click", () => refreshState());
+  elements.sessionRefreshButton.addEventListener("click", () => refreshState());
   elements.browseButton.addEventListener("click", chooseProjectPath);
   elements.projectForm.addEventListener("submit", addProject);
+  for (const button of elements.newSessionButtons) {
+    button.addEventListener("click", startDraftSession);
+  }
+  elements.sessionSearchInput.addEventListener("input", () => {
+    sessionSearchQuery = elements.sessionSearchInput.value;
+    renderCurrentSessionView();
+  });
+  elements.chatGoalInput.addEventListener("input", () => {
+    resizeComposer(elements.chatGoalInput);
+    renderCurrentSessionView();
+  });
+  elements.chatForm.addEventListener("submit", startRunFromChat);
+  for (const button of elements.viewModeButtons) {
+    button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
+  }
   elements.orgSelect.addEventListener("change", () => {
     renderProviderDisabledState(elements);
     seedAgentRolesFromSelection(true);
     renderCurrentOrgMap();
+    renderCurrentSessionView();
   });
   elements.providerList.addEventListener("change", () => {
     if (!elements.orgSelect.value) seedAgentRolesFromSelection(true);
     renderCurrentOrgMap();
     renderLaunchState();
+    renderCurrentSessionView();
   });
-  elements.goalInput.addEventListener("input", renderLaunchState);
-  elements.roundsInput.addEventListener("input", renderLaunchState);
-  elements.claudeToolsToggle.addEventListener("change", renderLaunchState);
+  elements.goalInput.addEventListener("input", () => {
+    renderLaunchState();
+    renderCurrentSessionView();
+  });
+  elements.roundsInput.addEventListener("input", () => {
+    renderLaunchState();
+    renderCurrentSessionView();
+  });
+  elements.claudeToolsToggle.addEventListener("change", () => {
+    renderLaunchState();
+    renderCurrentSessionView();
+  });
   for (const input of [elements.permissionPlan, elements.permissionWorkspace, elements.permissionTrusted]) {
-    input.addEventListener("change", renderLaunchState);
+    input.addEventListener("change", () => {
+      renderLaunchState();
+      renderCurrentSessionView();
+    });
   }
   elements.startButton.addEventListener("click", startRun);
+  window.addEventListener("keydown", (event) => {
+    if (event.ctrlKey && event.key.toLowerCase() === "n") {
+      event.preventDefault();
+      startDraftSession();
+    }
+  });
 }
 
 async function refreshState() {
@@ -101,6 +145,7 @@ async function refreshState() {
     selectHistoryRun
   );
   renderLaunchState();
+  renderCurrentSessionView();
 
   currentWorkspace = activeProject()?.path ?? currentState.workspace;
   await refreshLiveState();
@@ -113,6 +158,7 @@ async function refreshLiveState() {
   if (processState.activeRun) {
     currentWorkspace = processState.activeRun.workspace;
     selectedSessionId = null;
+    draftSession = false;
   }
 
   if (!currentWorkspace) return;
@@ -133,6 +179,7 @@ async function refreshLiveState() {
     if (processState.lastRunError) setMessage(elements, processState.lastRunError.message, true);
   }
   renderLaunchState();
+  renderCurrentSessionView();
 }
 
 async function selectProject(project) {
@@ -140,6 +187,8 @@ async function selectProject(project) {
   selectedProjectName = project.name;
   selectedSessionId = null;
   selectedAgentId = null;
+  draftSession = false;
+  chatNotice = null;
   await refreshState();
 }
 
@@ -160,6 +209,8 @@ async function addProject(event) {
     selectedProjectName = result.project.name;
     selectedSessionId = null;
     selectedAgentId = null;
+    draftSession = false;
+    chatNotice = null;
     clearProjectForm(elements);
     await refreshState();
   } catch (error) {
@@ -167,18 +218,28 @@ async function addProject(event) {
   }
 }
 
-async function startRun() {
+async function startRun(options = {}) {
+  const clearChatOnSuccess = options?.clearChatOnSuccess === true;
   const input = launchInput(elements);
   const project = activeProject();
   const validation = renderLaunchState();
 
-  if (!validation.ok) return;
-  if (currentProcessState.activeRun) return;
+  if (!validation.ok) {
+    chatNotice = { message: validation.message, error: true };
+    renderCurrentSessionView();
+    return;
+  }
+  if (currentProcessState.activeRun) {
+    chatNotice = { message: "A run is already active.", error: false };
+    renderCurrentSessionView();
+    return;
+  }
 
   elements.startButton.disabled = true;
   elements.startButton.textContent = "Starting...";
   selectedSessionId = null;
   selectedAgentId = null;
+  draftSession = false;
   setMessage(elements, "Starting run...");
   let failedToStart = false;
   try {
@@ -193,6 +254,11 @@ async function startRun() {
     };
     currentWorkspace = project.path;
     await refreshLiveState();
+    if (clearChatOnSuccess) {
+      elements.chatGoalInput.value = "";
+      resizeComposer(elements.chatGoalInput);
+    }
+    chatNotice = null;
     setMessage(elements, "");
   } catch (error) {
     failedToStart = true;
@@ -205,9 +271,11 @@ async function startRun() {
       }
     };
     renderLaunchState();
+    chatNotice = { message, error: true };
     setMessage(elements, message, true);
   } finally {
     if (!failedToStart) renderLaunchState();
+    renderCurrentSessionView();
   }
 }
 
@@ -217,10 +285,13 @@ async function selectHistoryRun(run) {
     selectedSessionId = run.id;
     const snapshot = await api.snapshot({ workspace: currentWorkspace, sessionId: run.id });
     if (currentState) currentState.run = snapshot;
+    draftSession = false;
+    chatNotice = null;
     renderRun(elements, snapshot, openPath);
     selectedAgentId = renderAgentChat(elements, snapshot, null, selectAgentChat);
     renderRunHistory(elements, currentState?.runHistory ?? [], snapshot.id, selectHistoryRun);
     renderRunVisualization(elements, snapshot, currentState?.runHistory ?? [], snapshot.id, selectHistoryRun);
+    renderCurrentSessionView();
     setMessage(elements, "");
   } catch (error) {
     setMessage(elements, error.message, true);
@@ -234,6 +305,65 @@ async function openPath(path) {
 function selectAgentChat(agentId) {
   selectedAgentId = agentId;
   selectedAgentId = renderAgentChat(elements, currentState?.run ?? null, selectedAgentId, selectAgentChat);
+}
+
+function setViewMode(mode, persist = true) {
+  activeViewMode = mode === "hierarchy" ? "hierarchy" : "sessions";
+  setActiveView(elements, activeViewMode);
+  if (persist) localStorage.setItem("ao:view-mode", activeViewMode);
+  if (activeViewMode === "sessions") {
+    resizeComposer(elements.chatGoalInput);
+    renderCurrentSessionView();
+  }
+}
+
+function startDraftSession() {
+  selectedSessionId = null;
+  selectedAgentId = null;
+  draftSession = true;
+  chatNotice = null;
+  elements.chatGoalInput.value = "";
+  resizeComposer(elements.chatGoalInput);
+  setViewMode("sessions");
+  renderCurrentSessionView();
+  elements.chatGoalInput.focus();
+}
+
+async function startRunFromChat(event) {
+  event.preventDefault();
+  const goal = elements.chatGoalInput.value.trim();
+  if (!goal) {
+    chatNotice = { message: "Enter a goal before starting.", error: true };
+    renderCurrentSessionView();
+    return;
+  }
+
+  elements.goalInput.value = goal;
+  chatNotice = null;
+  draftSession = false;
+  renderLaunchState();
+  await startRun({ clearChatOnSuccess: true });
+}
+
+function renderCurrentSessionView() {
+  const selectedRunId = draftSession ? null : selectedSessionId ?? currentState?.run?.id ?? null;
+  renderSessionView(
+    elements,
+    {
+      activeProject: activeProject(),
+      run: draftSession ? null : currentState?.run ?? null,
+      runHistory: currentState?.runHistory ?? [],
+      selectedRunId,
+      searchQuery: sessionSearchQuery,
+      draftMode: draftSession,
+      processState: currentProcessState,
+      launchInput: launchInput(elements),
+      notice: chatNotice
+    },
+    {
+      onSelectRun: selectHistoryRun
+    }
+  );
 }
 
 function activeProject() {
@@ -421,6 +551,10 @@ function renderLaunchState() {
     },
     currentProcessState
   );
+}
+
+function storedViewMode() {
+  return localStorage.getItem("ao:view-mode") === "hierarchy" ? "hierarchy" : "sessions";
 }
 
 window.addEventListener("beforeunload", () => {

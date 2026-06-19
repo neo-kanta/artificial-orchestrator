@@ -11,7 +11,91 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
+    <section id="session-view" class="app-view session-shell" aria-label="Session workspace">
+      <aside class="session-rail">
+        <div class="session-switchbar" aria-label="View switcher">
+          <button class="session-icon-button" type="button" data-view-mode="sessions" aria-label="Session page">[]</button>
+          <button class="session-icon-button" type="button" data-view-mode="hierarchy" aria-label="Hierarchy page">H</button>
+        </div>
+
+        <button class="session-command" type="button" data-new-session>
+          <span class="nav-icon">+</span>
+          <span>New session</span>
+          <span class="shortcut"><kbd>Ctrl</kbd><kbd>N</kbd></span>
+        </button>
+        <button class="session-command" type="button" data-view-mode="hierarchy">
+          <span class="nav-icon">#</span>
+          <span>Skills &amp; Tools</span>
+        </button>
+        <button class="session-command" type="button" data-view-mode="sessions">
+          <span class="nav-icon">:</span>
+          <span>Messaging</span>
+        </button>
+        <button class="session-command" type="button" data-view-mode="hierarchy">
+          <span class="nav-icon">[]</span>
+          <span>Artifacts</span>
+        </button>
+
+        <label class="session-search">
+          <span class="nav-icon">?</span>
+          <input id="session-search-input" type="search" autocomplete="off" placeholder="Search sessions..." />
+        </label>
+
+        <section class="session-group" aria-label="Pinned sessions">
+          <div class="session-group-title">Pinned</div>
+          <p class="session-hint">Shift-click a chat to pin</p>
+        </section>
+
+        <section class="session-group session-history-group" aria-label="Recent sessions">
+          <div class="session-group-title">
+            <span>Sessions</span>
+            <small id="session-count">0</small>
+            <button id="session-refresh-button" class="mini-icon-button" type="button" aria-label="Refresh sessions">refresh</button>
+          </div>
+          <div id="session-list" class="session-list"></div>
+        </section>
+
+        <div class="session-rail-bottom">
+          <button class="bottom-icon selected" type="button" data-view-mode="sessions" aria-label="Home">home</button>
+          <button class="bottom-icon" type="button" data-new-session aria-label="New session">+</button>
+          <span class="bottom-icon" aria-hidden="true">...</span>
+        </div>
+      </aside>
+
+      <main class="chat-workspace">
+        <header class="chat-topbar">
+          <div class="chat-session-menu" role="heading" aria-level="2">
+            <span id="chat-session-title">New session</span>
+            <span class="chevron">v</span>
+          </div>
+          <div class="chat-toolbar" aria-label="Workspace tools">
+            <span class="chat-tool" aria-hidden="true">audio</span>
+            <span class="chat-tool" aria-hidden="true">keys</span>
+            <span class="chat-tool" aria-hidden="true">settings</span>
+            <button class="chat-tool" type="button" data-view-mode="hierarchy">Hierarchy</button>
+          </div>
+        </header>
+
+        <section id="chat-thread" class="chat-thread" aria-live="polite"></section>
+
+        <form id="chat-form" class="chat-composer">
+          <button id="chat-add-button" class="composer-plus" type="button" data-view-mode="hierarchy" aria-label="Add context">+</button>
+          <textarea id="chat-goal-input" rows="1" placeholder="What's on your mind?"></textarea>
+          <span id="chat-composer-meta" class="chat-composer-meta">Provider pipeline</span>
+          <button id="chat-send-button" class="chat-send-button" type="submit" aria-label="Start run">Start</button>
+        </form>
+        <p id="chat-notice" class="chat-notice"></p>
+
+        <footer class="chat-statusbar">
+          <span id="chat-status-left">Gateway ready</span>
+          <span id="chat-status-center">Agents ready</span>
+          <span id="chat-status-right">Artificial Orchestrator</span>
+        </footer>
+      </main>
+    </section>
+
+    <section id="hierarchy-view" class="app-view hierarchy-view" aria-label="Hierarchy workspace" hidden>
+      <div class="shell">
       <aside class="rail">
         <header class="brand">
           <div class="brand-mark">AO</div>
@@ -20,6 +104,11 @@
             <p id="active-project-label">No active project</p>
           </div>
         </header>
+
+        <div class="hierarchy-mode-switch" aria-label="View switcher">
+          <button class="ghost-button" type="button" data-view-mode="sessions">Session page</button>
+          <button class="ghost-button" type="button" data-view-mode="hierarchy">Hierarchy page</button>
+        </div>
 
         <section class="project-panel">
           <div class="section-heading">
@@ -240,7 +329,8 @@
           <div id="run-history" class="run-history"></div>
         </section>
       </aside>
-    </div>
+      </div>
+    </section>
 
     <script type="module" src="./renderer/app.js"></script>
   </body>

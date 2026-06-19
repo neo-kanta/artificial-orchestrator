@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { filterSessions, sessionTitle } from "../desktop/renderer/chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
@@ -177,4 +178,34 @@ test("desktop project browser infers a project name from the selected path", () 
   assert.equal(projectNameFromPath("C:\\Users\\kanta\\source\\repos\\ims-th-solution\\"), "ims-th-solution");
   assert.equal(projectNameFromPath("/home/kanta/work/demo"), "demo");
   assert.equal(projectNameFromPath(""), "");
+});
+
+test("desktop session view filters history and compacts titles", () => {
+  const runs = [
+    {
+      id: "run-1",
+      goal: "Review payment provider wiring",
+      phase: "done",
+      project: { name: "billing" },
+      startedAt: "2026-06-18T10:00:00.000Z"
+    },
+    {
+      id: "run-2",
+      goal: "Fix hierarchy page controls",
+      phase: "blocked",
+      project: { name: "desktop" },
+      org: { label: "Software Team" }
+    }
+  ];
+
+  assert.deepEqual(
+    filterSessions(runs, "hierarchy").map((run) => run.id),
+    ["run-2"]
+  );
+  assert.deepEqual(
+    filterSessions(runs, "billing").map((run) => run.id),
+    ["run-1"]
+  );
+  assert.equal(sessionTitle({ goal: "  Ship   the   session   page  " }), "Ship the session page");
+  assert.equal(sessionTitle({ goal: "A".repeat(60) }), `${"A".repeat(39)}...`);
 });
