@@ -11,6 +11,7 @@ export function validateLaunch(input = {}, context = {}) {
   if (!input.orgName && providers.length === 0 && agentRoles.length === 0) {
     errors.push("Select at least one provider, custom agent, or organization preset.");
   }
+  errors.push(...providerReadinessErrors(input, context));
 
   return {
     ok: errors.length === 0,
@@ -157,8 +158,45 @@ function normalizeAgentRoles(value) {
     ? value
         .map((role) => ({
           id: String(role?.id ?? "").trim(),
-          label: String(role?.label ?? role?.id ?? "").trim()
+          label: String(role?.label ?? role?.id ?? "").trim(),
+          providerId: String(role?.providerId ?? role?.provider ?? "").trim()
         }))
         .filter((role) => role.id || role.label)
     : [];
+}
+
+function providerReadinessErrors(input, context) {
+  const providerById = new Map((context.providers ?? []).map((provider) => [provider.id, provider]));
+  const errors = [];
+
+  for (const id of selectedTeamProviderIds(input, context)) {
+    const provider = providerById.get(id);
+    if (provider?.readiness?.status !== "blocked") continue;
+    errors.push(`${provider.label ?? id} is not ready: ${provider.readiness.message ?? provider.readiness.label}`);
+  }
+
+  return errors;
+}
+
+function selectedTeamProviderIds(input, context) {
+  const agentRoles = normalizeAgentRoles(context.agentRoles);
+  if (agentRoles.length > 0) return uniqueList(agentRoles.map((role) => role.providerId));
+
+  if (input.orgName) {
+    const org = findById(context.orgs, input.orgName);
+    return uniqueList((org?.roles ?? []).map((role) => role.provider ?? role.providerId));
+  }
+
+  return uniqueList(normalizeList(input.providerIds));
+}
+
+function uniqueList(values) {
+  const seen = new Set();
+  return values
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
 }

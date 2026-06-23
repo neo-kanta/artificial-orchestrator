@@ -36,6 +36,7 @@ The app uses the same project registry, provider configuration, organization pre
 - See a live run summary and readiness check before the Start button is enabled.
 - Follow a setup checklist that shows the next missing launcher step.
 - Review provider metadata, selected permissions, Claude tool access, and run shape in one place.
+- See sanitized provider readiness warnings, such as a missing `OPENAI_API_KEY`, before starting a run.
 - Keep custom agent role/model editing available without making it the default setup path.
 - Visualize an organization preset as role nodes with animated handoff paths between agents.
 - Inspect role status, active handoff, and role-level blockers directly on the organization map.

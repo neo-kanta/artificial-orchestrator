@@ -95,6 +95,65 @@ test("desktop launch summary treats organization presets as the provider source"
   assert.match(selectedProviderNotice({ orgName: "software-team" }), /locked/);
 });
 
+test("desktop launch validation blocks providers with readiness blockers", () => {
+  const openai = {
+    id: "openai",
+    label: "OpenAI",
+    readiness: {
+      status: "blocked",
+      label: "Missing OPENAI_API_KEY",
+      message: "Set OPENAI_API_KEY before starting OpenAI-backed providers."
+    }
+  };
+  const codex = {
+    id: "codex",
+    label: "Codex",
+    readiness: {
+      status: "unchecked",
+      label: "Codex CLI auth",
+      message: "Uses the local Codex CLI."
+    }
+  };
+
+  const direct = validateLaunch(
+    {
+      goal: "Use OpenAI for the first turn",
+      rounds: 1,
+      providerIds: ["openai"]
+    },
+    { project, providers: [openai, codex] }
+  );
+
+  assert.equal(direct.ok, false);
+  assert.deepEqual(direct.errors, ["OpenAI is not ready: Set OPENAI_API_KEY before starting OpenAI-backed providers."]);
+
+  const org = validateLaunch(
+    {
+      goal: "Run the preset",
+      rounds: 1,
+      orgName: "software-team",
+      providerIds: ["codex"]
+    },
+    {
+      project,
+      providers: [openai, codex],
+      orgs: [
+        {
+          id: "software-team",
+          label: "Software Team",
+          roles: [
+            { id: "manager", provider: "openai" },
+            { id: "builder", provider: "codex" }
+          ]
+        }
+      ]
+    }
+  );
+
+  assert.equal(org.ok, false);
+  assert.deepEqual(org.errors, ["OpenAI is not ready: Set OPENAI_API_KEY before starting OpenAI-backed providers."]);
+});
+
 test("desktop launch summary supports custom agent rosters", () => {
   const summary = launchSummary(
     {
