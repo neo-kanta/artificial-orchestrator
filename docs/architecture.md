@@ -2,6 +2,11 @@
 
 Artificial Orchestrator is organized around one rule: provider orchestration is the product core, and every interface is an adapter over that core.
 
+For product-facing behavior, read this file together with:
+
+- [Desktop UI Guide](desktop-ui.md) for the user workflow, GUI surfaces, recovery behavior, and UI improvement areas.
+- [AI Operating Guide](ai-operator-guide.md) for provider concepts, AI safety, evaluation practice, and improvement priorities.
+
 The repository uses a layered layout:
 
 ```text

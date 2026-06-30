@@ -1,8 +1,28 @@
 # Artificial Orchestrator
 
-Artificial Orchestrator is a provider-agnostic CLI for coordinating AI agents in a local terminal. Claude and Codex are the default architect/builder pair, but configured command providers and the built-in OpenAI adapter use the same durable orchestration path. Every public exchange is written to a transcript plus an NDJSON machine log.
+Artificial Orchestrator coordinates AI providers over a local project. It has a CLI and an Electron desktop app, but both use the same provider-agnostic orchestration engine, project registry, configuration, organization presets, and durable run files.
 
-It does not expose hidden chain-of-thought. It shows the useful parts: decisions, tradeoffs, actions, token usage when a CLI reports it, and provider limits such as Claude reset windows.
+Claude and Codex are the default architect/builder pair. Configured command providers and the built-in OpenAI adapter use the same run path.
+
+The project records public, useful run state: decisions, tradeoffs, actions, handoffs, status, usage when providers report it, and provider blockers such as auth or quota limits. It does not expose hidden chain-of-thought and it does not bypass provider limits.
+
+## What To Read First
+
+- [Desktop UI Guide](docs/desktop-ui.md) - how to use the GUI, what each screen means, how to inspect blocked runs, and what UI areas need improvement.
+- [AI Operating Guide](docs/ai-operator-guide.md) - AI concepts you need to know, how to write better goals, provider safety, evaluation, and improvement areas.
+- [Architecture](docs/architecture.md) - module boundaries and where new behavior should live.
+- [Provider Configuration](docs/providers.md) - built-in providers, OpenAI, custom command providers, and handoff expectations.
+- [AI Organizations](docs/orgs.md) - role-based runs such as `software-team`.
+- [Project Registry](docs/projects.md) - saved workspaces and active project behavior.
+
+## Critical Rules
+
+- Keep provider secrets in environment variables or local machine config, not committed files.
+- Use Plan only when you want advice without edits.
+- Use Edit workspace only for scoped implementation inside the selected project.
+- Use Trusted full access only in a worktree you trust and can repair.
+- Treat `blocked` as a safe stop, not a crash. Inspect durable files before retrying.
+- Run tests and review diffs before committing AI-generated changes.
 
 ## Install
 
@@ -27,7 +47,9 @@ Run the Electron desktop shell:
 npm run desktop
 ```
 
-The app uses the same project registry, provider configuration, organization presets, orchestration engine, and durable run files as the CLI. From the desktop app you can:
+The app uses the same project registry, provider configuration, organization presets, orchestration engine, and durable run files as the CLI. For a screen-by-screen walkthrough, see the [Desktop UI Guide](docs/desktop-ui.md).
+
+From the desktop app you can:
 
 - See the active project and workspace path.
 - Add, list, and switch projects.
@@ -43,6 +65,7 @@ The app uses the same project registry, provider configuration, organization pre
 - Start a run for the selected project.
 - See active run and last run failure banners without opening terminal output.
 - Watch the latest transcript and phase updates while the run is active.
+- Review phase, project/org context, blockers, latest handoff, and durable file buttons directly in the session page.
 - Use the Recovery Center to see blocked, running, done, or round-limited run guidance with prioritized next actions.
 - Browse recent durable runs for the selected project and reload an older run's transcript/status from its session files.
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.

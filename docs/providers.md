@@ -9,6 +9,8 @@ claude -> codex
 You can replace or extend that pipeline with any command-line AI that can receive a prompt and print a response.
 OpenAI API is also available as a built-in direct provider.
 
+If provider, model, token, context, handoff, or blocker terms are unfamiliar, read the [AI Operating Guide](ai-operator-guide.md) before adding new providers.
+
 ## Quick Commands
 
 ```powershell

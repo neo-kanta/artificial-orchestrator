@@ -2,6 +2,8 @@
 
 Artificial Orchestrator can run a named organization instead of a flat provider pipeline. An organization is a role pipeline over the same local session files, so the system stays provider-agnostic and durable.
 
+Use organizations when separate roles will produce meaningfully different decisions. For guidance on role design, context, handoffs, and when not to add more agents, see the [AI Operating Guide](ai-operator-guide.md).
+
 ## Built-In Organization
 
 ```powershell
