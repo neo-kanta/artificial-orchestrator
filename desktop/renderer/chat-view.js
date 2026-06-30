@@ -11,7 +11,7 @@ export function setActiveView(elements, mode) {
   }
 }
 
-export function renderSessionView(elements, context, handlers) {
+export function renderSessionView(elements, context, handlers = {}) {
   const {
     activeProject = null,
     run = null,
@@ -26,9 +26,11 @@ export function renderSessionView(elements, context, handlers) {
 
   const visibleRuns = filterSessions(runHistory, searchQuery);
   const selectedRun = draftMode ? null : run;
+  const onSelectRun = handlers.onSelectRun ?? (() => {});
+  const onOpenPath = handlers.onOpenPath ?? (() => {});
 
-  renderSessionList(elements, visibleRuns, selectedRunId, handlers.onSelectRun);
-  renderThread(elements, selectedRun, draftMode);
+  renderSessionList(elements, visibleRuns, selectedRunId, onSelectRun);
+  renderThread(elements, selectedRun, draftMode, onOpenPath);
   renderComposer(elements, { activeProject, processState, launchInput, notice });
 
   elements.sessionCount.textContent = String(runHistory.length);
@@ -61,6 +63,39 @@ export function sessionTitle(run) {
   return goal ? compact(goal, 42) : "Untitled session";
 }
 
+export function sessionRunOverview(run) {
+  const phase = normalizeStatus(run?.phase ?? "idle");
+  const blockers = Array.isArray(run?.blockers) ? run.blockers.map((blocker) => compactLine(blocker, 120)).filter(Boolean) : [];
+  return {
+    phase,
+    phaseClass: `phase-${String(run?.phase ?? "idle").replace(/_/g, "-")}`,
+    project: run?.project?.name ?? "No project recorded",
+    projectPath: run?.project?.path ?? "",
+    team: sessionTeamLabel(run),
+    blockers,
+    latestHandoff: compactLine(run?.latestHandoff || run?.handoff || "", 260),
+    files: sessionFileActions(run?.files)
+  };
+}
+
+export function sessionFileActions(files = {}) {
+  return [
+    ["transcript", "Transcript", files.transcript],
+    ["status", "Status", files.status],
+    ["handoff", "Handoff", files.handoff],
+    ["providerState", "Provider state", files.providerState],
+    ["orgState", "Org state", files.orgState],
+    ["events", "Events", files.events]
+  ]
+    .filter((entry) => entry[2])
+    .map(([key, label, path]) => ({
+      key,
+      label,
+      path,
+      detail: pathLeaf(path)
+    }));
+}
+
 function renderSessionList(elements, runs, selectedRunId, onSelectRun) {
   elements.sessionList.replaceChildren();
 
@@ -91,7 +126,7 @@ function renderSessionList(elements, runs, selectedRunId, onSelectRun) {
   }
 }
 
-function renderThread(elements, run, draftMode) {
+function renderThread(elements, run, draftMode, onOpenPath) {
   elements.chatThread.replaceChildren();
 
   if (draftMode || !run) {
@@ -100,6 +135,7 @@ function renderThread(elements, run, draftMode) {
   }
 
   elements.chatThread.append(messageCard("user", "Goal", run.goal || "(no goal recorded)"));
+  elements.chatThread.append(sessionOverviewNode(sessionRunOverview(run), onOpenPath));
 
   const messages = Array.isArray(run.agentMessages) ? run.agentMessages : [];
   if (messages.length === 0) {
@@ -110,6 +146,89 @@ function renderThread(elements, run, draftMode) {
   for (const message of messages) {
     elements.chatThread.append(messageCard("agent", messageTitle(message), message.text || "(no output)", messageMeta(message)));
   }
+}
+
+function sessionOverviewNode(overview, onOpenPath) {
+  const panel = document.createElement("section");
+  panel.className = `session-run-overview ${overview.phaseClass}`;
+  panel.setAttribute("aria-label", "Run status summary");
+
+  const head = document.createElement("div");
+  head.className = "session-overview-head";
+  const title = document.createElement("strong");
+  title.textContent = "Run status";
+  const phase = document.createElement("span");
+  phase.className = `session-phase ${overview.phaseClass}`;
+  phase.textContent = overview.phase;
+  head.append(title, phase);
+
+  const facts = document.createElement("dl");
+  facts.className = "session-facts";
+  facts.append(
+    factNode("Project", overview.project, overview.projectPath),
+    factNode("Team", overview.team),
+    factNode("Files", overview.files.length ? `${overview.files.length} durable files` : "No durable files")
+  );
+
+  panel.append(head, facts);
+
+  if (overview.blockers.length > 0) {
+    const blockers = document.createElement("div");
+    blockers.className = "session-blockers";
+    const label = document.createElement("span");
+    label.textContent = "Blockers";
+    blockers.append(label);
+    for (const blocker of overview.blockers) {
+      const item = document.createElement("strong");
+      item.textContent = blocker;
+      blockers.append(item);
+    }
+    panel.append(blockers);
+  }
+
+  if (overview.latestHandoff) {
+    const handoff = document.createElement("div");
+    handoff.className = "session-handoff";
+    const label = document.createElement("span");
+    label.textContent = "Latest handoff";
+    const text = document.createElement("p");
+    text.textContent = overview.latestHandoff;
+    handoff.append(label, text);
+    panel.append(handoff);
+  }
+
+  if (overview.files.length > 0) {
+    const fileBar = document.createElement("div");
+    fileBar.className = "session-file-actions";
+    for (const file of overview.files) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "session-file-button";
+      button.textContent = file.label;
+      button.title = file.path;
+      button.addEventListener("click", () => onOpenPath(file.path));
+      fileBar.append(button);
+    }
+    panel.append(fileBar);
+  }
+
+  return panel;
+}
+
+function factNode(labelText, valueText, detailText = "") {
+  const item = document.createElement("div");
+  item.className = "session-fact";
+  const label = document.createElement("dt");
+  label.textContent = labelText;
+  const value = document.createElement("dd");
+  value.textContent = valueText;
+  item.append(label, value);
+  if (detailText) {
+    const detail = document.createElement("small");
+    detail.textContent = detailText;
+    item.append(detail);
+  }
+  return item;
 }
 
 function renderComposer(elements, { activeProject, processState, launchInput, notice }) {
@@ -188,6 +307,14 @@ function sessionMeta(run) {
     .join(" | ");
 }
 
+function sessionTeamLabel(run) {
+  if (run?.org?.label) return `Organization - ${run.org.label}`;
+  if (run?.org?.id) return `Organization - ${run.org.id}`;
+  const providers = Array.isArray(run?.providers) ? run.providers.map((provider) => provider.id).filter(Boolean) : [];
+  if (providers.length > 0) return `Providers - ${providers.join(" -> ")}`;
+  return "Team not recorded";
+}
+
 function composerMeta(input = {}) {
   const rounds = Number(input.rounds);
   const roundText = Number.isFinite(rounds) && rounds > 0 ? `${rounds} ${rounds === 1 ? "round" : "rounds"}` : "rounds unset";
@@ -196,6 +323,16 @@ function composerMeta(input = {}) {
   const providers = Array.isArray(input.providerIds) ? input.providerIds.length : 0;
   const providerText = providers === 1 ? "1 provider" : `${providers} providers`;
   return `${providerText} - ${roundText}`;
+}
+
+function compactLine(value, maxLength) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return compact(text, maxLength);
+}
+
+function pathLeaf(path) {
+  const parts = String(path ?? "").split(/[\\/]+/).filter(Boolean);
+  return parts.at(-1) ?? String(path ?? "");
 }
 
 function statusLeft(run, processState) {

@@ -43,6 +43,7 @@ The app uses the same project registry, provider configuration, organization pre
 - Start a run for the selected project.
 - See active run and last run failure banners without opening terminal output.
 - Watch the latest transcript and phase updates while the run is active.
+- Review phase, project/org context, blockers, latest handoff, and durable file buttons directly in the session page.
 - Use the Recovery Center to see blocked, running, done, or round-limited run guidance with prioritized next actions.
 - Browse recent durable runs for the selected project and reload an older run's transcript/status from its session files.
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.

@@ -361,7 +361,8 @@ function renderCurrentSessionView() {
       notice: chatNotice
     },
     {
-      onSelectRun: selectHistoryRun
+      onSelectRun: selectHistoryRun,
+      onOpenPath: openPath
     }
   );
 }

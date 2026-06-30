@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterSessions, sessionTitle } from "../desktop/renderer/chat-view.js";
+import { filterSessions, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
@@ -208,4 +208,47 @@ test("desktop session view filters history and compacts titles", () => {
   );
   assert.equal(sessionTitle({ goal: "  Ship   the   session   page  " }), "Ship the session page");
   assert.equal(sessionTitle({ goal: "A".repeat(60) }), `${"A".repeat(39)}...`);
+});
+
+test("desktop session overview summarizes run state and durable files", () => {
+  const overview = sessionRunOverview({
+    phase: "rounds_exhausted",
+    project: { name: "desktop", path: "C:\\work\\desktop" },
+    org: { label: "Software Team" },
+    blockers: ["Provider quota needs reset before the next handoff can run."],
+    latestHandoff: "Review the renderer state. Keep durable file links visible for blocked runs.",
+    providers: [{ id: "claude" }, { id: "codex" }],
+    files: {
+      transcript: "C:\\work\\desktop\\.duet\\sessions\\20260630\\transcript.md",
+      status: "C:\\work\\desktop\\.duet\\sessions\\20260630\\status.json",
+      providerState: "C:\\work\\desktop\\.duet\\sessions\\20260630\\provider-state.json"
+    }
+  });
+
+  assert.equal(overview.phase, "rounds exhausted");
+  assert.equal(overview.phaseClass, "phase-rounds-exhausted");
+  assert.equal(overview.project, "desktop");
+  assert.equal(overview.projectPath, "C:\\work\\desktop");
+  assert.equal(overview.team, "Organization - Software Team");
+  assert.deepEqual(overview.blockers, ["Provider quota needs reset before the next handoff can run."]);
+  assert.match(overview.latestHandoff, /durable file links/);
+  assert.deepEqual(
+    overview.files.map((file) => [file.key, file.label, file.detail]),
+    [
+      ["transcript", "Transcript", "transcript.md"],
+      ["status", "Status", "status.json"],
+      ["providerState", "Provider state", "provider-state.json"]
+    ]
+  );
+
+  assert.deepEqual(
+    sessionFileActions({
+      handoff: "/tmp/ao/handoff.md",
+      events: "/tmp/ao/events.ndjson"
+    }).map((file) => [file.key, file.detail]),
+    [
+      ["handoff", "handoff.md"],
+      ["events", "events.ndjson"]
+    ]
+  );
 });
