@@ -81,6 +81,7 @@ export async function appendTurn(session, turn) {
   const title = `## Round ${turn.round} - ${turn.provider}`;
   const meta = [
     `status: ${turn.ok ? "ok" : "failed"}`,
+    turn.fallback?.usedProvider ? `fallback: ${turn.fallback.requestedProvider} -> ${turn.fallback.usedProvider}` : null,
     turn.usageLine,
     turn.limit ? `limit reset: ${turn.limit.reset}` : null,
     `duration: ${Math.round(turn.durationMs / 1000)}s`
@@ -99,6 +100,7 @@ export async function appendTurn(session, turn) {
   session.state.providers[turn.provider] = {
     ok: turn.ok,
     limit: turn.limit ?? null,
+    fallback: turn.fallback ?? null,
     usage: turn.usage ?? null,
     costUsd: turn.costUsd ?? null,
     lastDurationMs: turn.durationMs
@@ -121,6 +123,7 @@ export async function appendTurn(session, turn) {
     lastRound: turn.round,
     lastAt: event.at,
     limit: turn.limit ?? null,
+    fallback: turn.fallback ?? null,
     usage: turn.usage ?? null,
     costUsd: turn.costUsd ?? null,
     lastDurationMs: turn.durationMs,
@@ -130,6 +133,7 @@ export async function appendTurn(session, turn) {
     round: turn.round,
     provider: turn.provider,
     ok: turn.ok,
+    fallback: turn.fallback ?? null,
     at: event.at,
     handoff: handoffText
   });

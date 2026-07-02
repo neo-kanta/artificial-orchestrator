@@ -1,5 +1,8 @@
 import { access, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+
+const LOCAL_ADVISOR_SCRIPT = fileURLToPath(new URL("../../examples/local-advisor.js", import.meta.url));
 
 export const BUILT_IN_PROVIDERS = {
   openai: {
@@ -25,6 +28,18 @@ export const BUILT_IN_PROVIDERS = {
     kind: "codex",
     role: "builder",
     color: "blue"
+  },
+  "local-advisor": {
+    id: "local-advisor",
+    label: "Local Advisor",
+    kind: "command",
+    role: "deterministic-advisor",
+    command: "node",
+    args: [LOCAL_ADVISOR_SCRIPT],
+    promptMode: "stdin",
+    parser: "json",
+    timeoutMs: 120000,
+    color: "yellow"
   }
 };
 
@@ -54,7 +69,7 @@ export function resolveProviders({ config, providerList, codexOnly, claudeOnly, 
     const spec = registry[id];
     if (!spec) throw new Error(`Unknown provider "${id}". Add it to artificial-orchestrator.config.json or use one of: ${Object.keys(registry).join(", ")}`);
 
-    return hydrateProvider(spec, runtime);
+    return hydrateProviderWithFallbacks({ spec, registry, runtime });
   });
 }
 
@@ -123,6 +138,35 @@ export function hydrateProvider(spec, runtime) {
   }
 
   return provider;
+}
+
+export function hydrateProviderWithFallbacks({ spec, registry, runtime, fallbackRefs, seen = [] }) {
+  const provider = hydrateProvider(spec, runtime);
+  const refs = normalizeFallbackRefs(fallbackRefs ?? spec.fallbackProviders ?? spec.fallback);
+  provider.fallbackProviders = refs.map((id) => {
+    if (seen.includes(id)) {
+      throw new Error(`Provider fallback cycle detected: ${[...seen, id].join(" -> ")}`);
+    }
+
+    const fallbackSpec = registry[id];
+    if (!fallbackSpec) {
+      throw new Error(`Provider "${spec.id}" references unknown fallback provider "${id}".`);
+    }
+
+    return hydrateProviderWithFallbacks({
+      spec: fallbackSpec,
+      registry,
+      runtime,
+      seen: [...seen, spec.id]
+    });
+  });
+  return provider;
+}
+
+export function normalizeFallbackRefs(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return splitList(value);
 }
 
 async function findConfig(workspace, configPath) {

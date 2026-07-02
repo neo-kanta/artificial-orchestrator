@@ -1,6 +1,38 @@
-import { hydrateProvider, providerRegistry } from "./config.js";
+import { hydrateProviderWithFallbacks, providerRegistry } from "./config.js";
 
 export const BUILT_IN_ORGS = {
+  "advisor-council": {
+    id: "advisor-council",
+    label: "Advisor Council",
+    description: "A model-agnostic advisor flow for Codex and Claude with deterministic local fallback when paid or remote models are unavailable.",
+    pipeline: ["advisor", "claude-reviewer", "codex-builder", "final-advisor"],
+    roles: {
+      advisor: {
+        provider: "openai",
+        fallbackProviders: ["local-advisor"],
+        responsibility: "Clarify the goal, decide whether Codex and Claude are useful for this task, produce the implementation plan first, and define safety/verification guardrails."
+      },
+      "claude-reviewer": {
+        provider: "claude",
+        fallbackProviders: ["local-advisor"],
+        responsibility: "Review the plan like an architecture advisor, identify risks, and give concrete guidance to Codex. If Claude is unavailable, provide deterministic checklist guidance instead of blocking the run."
+      },
+      "codex-builder": {
+        provider: "codex",
+        fallbackProviders: ["local-advisor"],
+        responsibility: "Implement or propose scoped code changes with Codex. If Codex is unavailable, produce exact manual next steps, commands, and verification checks instead of editing files."
+      },
+      "final-advisor": {
+        provider: "openai",
+        fallbackProviders: ["local-advisor"],
+        responsibility: "Synthesize the Codex/Claude outputs, confirm what was changed or what remains manual, list verification evidence, and return status done when the advisory package is complete."
+      }
+    },
+    stopConditions: {
+      doneStatuses: ["done"],
+      blockedStatuses: ["blocked"]
+    }
+  },
   "software-team": {
     id: "software-team",
     label: "Software Team",
@@ -65,7 +97,7 @@ export function resolveOrg({ config, orgName, runtime }) {
 
   const providers = providerRegistry(config);
   const pipeline = Array.isArray(org.pipeline) && org.pipeline.length ? org.pipeline : Object.keys(org.roles ?? {});
-  const roles = pipeline.map((roleName) => {
+  const roles = pipeline.map((roleName, index) => {
     const role = org.roles?.[roleName];
     if (!role) throw new Error(`Org "${orgName}" references missing role "${roleName}".`);
 
@@ -73,7 +105,12 @@ export function resolveOrg({ config, orgName, runtime }) {
     const providerSpec = providers[providerId];
     if (!providerSpec) throw new Error(`Org "${orgName}" role "${roleName}" references unknown provider "${providerId}".`);
 
-    const provider = hydrateProvider(providerSpec, runtime);
+    const provider = hydrateProviderWithFallbacks({
+      spec: providerSpec,
+      registry: providers,
+      runtime,
+      fallbackRefs: role.fallbackProviders ?? role.fallback
+    });
     return {
       ...provider,
       id: roleName,
@@ -83,6 +120,9 @@ export function resolveOrg({ config, orgName, runtime }) {
       role: roleName,
       orgRole: roleName,
       orgId: org.id,
+      orgRoleIndex: index,
+      orgRoleCount: pipeline.length,
+      orgTerminal: index === pipeline.length - 1,
       responsibility: role.responsibility ?? provider.role ?? "Collaborate with the organization."
     };
   });

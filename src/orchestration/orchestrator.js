@@ -33,20 +33,20 @@ export async function runDuet(options) {
         session,
         round,
         provider,
-        fn: () =>
-          call(
+        fn: () => {
+          const prompt = providerPrompt({
             provider,
-            providerPrompt({
-              provider,
-              goal: options.goal,
-              round,
-              workspaceSnapshot: snapshot,
-              history: compactHistory(history, options.historyChars),
-              durableState,
-              apply: options.apply,
-              sharedContext: options.sharedContext !== false
-            })
-          ),
+            goal: options.goal,
+            round,
+            workspaceSnapshot: snapshot,
+            history: compactHistory(history, options.historyChars),
+            durableState,
+            apply: options.apply,
+            sharedContext: options.sharedContext !== false
+          });
+
+          return callProviderWithFallbacks({ provider, prompt, call });
+        },
         history
       });
 
@@ -72,6 +72,113 @@ export async function runDuet(options) {
   return session;
 }
 
+async function callProviderWithFallbacks({ provider, prompt, call }) {
+  const attempts = [provider, ...(provider.fallbackProviders ?? [])];
+  const failures = [];
+
+  for (const candidate of attempts) {
+    const result = await safeProviderCall(call, candidate, prompt);
+    if (result.ok) {
+      return failures.length === 0
+        ? result
+        : annotateFallbackSuccess({ result, requested: provider, used: candidate, failures });
+    }
+
+    failures.push(providerFailure(candidate, result));
+  }
+
+  const last = failures.at(-1)?.result ?? {
+    ok: false,
+    text: "Provider unavailable.",
+    usage: null,
+    costUsd: null,
+    limit: null,
+    errors: ["Provider unavailable."],
+    stderr: "",
+    durationMs: 0
+  };
+
+  return failures.length <= 1 ? last : annotateFallbackFailure({ result: last, requested: provider, failures });
+}
+
+async function safeProviderCall(call, provider, prompt) {
+  try {
+    return await call(provider, prompt);
+  } catch (error) {
+    return {
+      provider: provider.id,
+      ok: false,
+      code: null,
+      text: error?.message ?? String(error),
+      usage: null,
+      costUsd: null,
+      limit: null,
+      errors: [error?.message ?? String(error)],
+      stderr: "",
+      durationMs: 0
+    };
+  }
+}
+
+function annotateFallbackSuccess({ result, requested, used, failures }) {
+  const notice = fallbackNotice({ requested, used, failures, success: true });
+  return {
+    ...result,
+    text: `${notice}\n\n${result.text || "(no fallback output)"}`,
+    fallback: {
+      requestedProvider: requested.id,
+      usedProvider: used.id,
+      failures: failures.map(publicFailure)
+    }
+  };
+}
+
+function annotateFallbackFailure({ result, requested, failures }) {
+  const notice = fallbackNotice({ requested, used: null, failures, success: false });
+  return {
+    ...result,
+    text: `${notice}\n\n${result.text || "(no output)"}`,
+    fallback: {
+      requestedProvider: requested.id,
+      usedProvider: null,
+      failures: failures.map(publicFailure)
+    }
+  };
+}
+
+function fallbackNotice({ requested, used, failures, success }) {
+  const title = success
+    ? `Fallback provider used for ${requested.id}: ${used.id}`
+    : `All fallback providers failed for ${requested.id}`;
+  const lines = failures.map((failure) => `- ${failure.provider}: ${failure.reason}`);
+  return [
+    title,
+    "Primary/fallback failure summary:",
+    ...lines
+  ].join("\n");
+}
+
+function providerFailure(provider, result) {
+  return {
+    provider: provider.id,
+    reason: compactFailureReason(result),
+    result
+  };
+}
+
+function compactFailureReason(result) {
+  if (result?.limit?.reset) return `limit reset ${result.limit.reset}`;
+  const text = String(result?.errors?.[0] ?? result?.stderr ?? result?.text ?? "provider unavailable").trim();
+  return text.length > 240 ? `${text.slice(0, 237)}...` : text;
+}
+
+function publicFailure(failure) {
+  return {
+    provider: failure.provider,
+    reason: failure.reason
+  };
+}
+
 async function runProviderTurn({ session, round, provider, fn, history }) {
   process.stdout.write(color("cyan", `[round ${round}] ${provider.id} thinking... `));
   const result = await fn();
@@ -81,6 +188,10 @@ async function runProviderTurn({ session, round, provider, fn, history }) {
 
   if (result.limit) {
     console.log(color("yellow", `${provider.id} limit reset: ${result.limit.reset}`));
+  }
+
+  if (result.fallback?.usedProvider) {
+    console.log(color("yellow", `${provider.id} fallback used: ${result.fallback.usedProvider}`));
   }
 
   const text = result.text || "(no output)";
@@ -103,6 +214,7 @@ async function runProviderTurn({ session, round, provider, fn, history }) {
     usageLine: line,
     costUsd: result.costUsd ?? null,
     limit: result.limit ?? null,
+    fallback: result.fallback ?? null,
     errors: result.errors ?? [],
     stderr: result.stderr ?? "",
     durationMs: result.durationMs

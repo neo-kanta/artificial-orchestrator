@@ -5,6 +5,48 @@ import { listOrgs, resolveOrg } from "../src/orgs.js";
 test("lists built-in software team org", () => {
   const orgs = listOrgs();
   assert.equal(orgs.some((org) => org.id === "software-team"), true);
+  assert.equal(orgs.some((org) => org.id === "advisor-council"), true);
+});
+
+test("resolves advisor council with local fallback providers", () => {
+  const org = resolveOrg({
+    config: {},
+    orgName: "advisor-council",
+    runtime: {
+      workspace: "C:/repo",
+      timeoutMs: 1000,
+      codexModel: "gpt-codex-test",
+      openaiModel: "gpt-openai-test",
+      openaiReasoning: "medium",
+      apply: false,
+      unsafe: false
+    }
+  });
+
+  assert.deepEqual(org.pipeline, ["advisor", "claude-reviewer", "codex-builder", "final-advisor"]);
+
+  const advisor = org.roles.find((role) => role.id === "advisor");
+  assert.equal(advisor.kind, "openai");
+  assert.equal(advisor.fallbackProviders[0].id, "local-advisor");
+  assert.equal(advisor.fallbackProviders[0].kind, "command");
+
+  const builder = org.roles.find((role) => role.id === "codex-builder");
+  assert.equal(builder.kind, "codex");
+  assert.equal(builder.model, "gpt-codex-test");
+  assert.equal(builder.fallbackProviders[0].id, "local-advisor");
+});
+
+test("marks the last pipeline role as the terminal org role", () => {
+  const org = resolveOrg({
+    config: {},
+    orgName: "advisor-council",
+    runtime: { workspace: "C:/repo", timeoutMs: 1000 }
+  });
+
+  const terminal = org.roles.filter((role) => role.orgTerminal);
+  assert.equal(terminal.length, 1);
+  assert.equal(terminal[0].id, "final-advisor");
+  assert.equal(org.roles.find((role) => role.id === "advisor").orgTerminal, false);
 });
 
 test("resolves software team roles to hydrated providers", () => {

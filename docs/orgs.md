@@ -2,11 +2,12 @@
 
 Artificial Orchestrator can run a named organization instead of a flat provider pipeline. An organization is a role pipeline over the same local session files, so the system stays provider-agnostic and durable.
 
-## Built-In Organization
+## Built-In Organizations
 
 ```powershell
 ao org list
 ao org show software-team
+ao org show advisor-council
 ```
 
 `software-team` includes:
@@ -33,6 +34,24 @@ security  -> openai
 docs      -> openai
 ```
 
+`advisor-council` is for model-agnostic advice around Codex and Claude. It includes:
+
+- `advisor` - clarifies the goal, writes the implementation plan first, and sets safety/verification guardrails.
+- `claude-reviewer` - reviews architecture and risk, then gives concrete instructions to Codex.
+- `codex-builder` - implements scoped changes when `--apply` is enabled, otherwise proposes changes.
+- `final-advisor` - synthesizes the handoff, verification evidence, and remaining blockers.
+
+Default role mapping:
+
+```text
+advisor        -> openai (fallback: local-advisor)
+claude-reviewer -> claude (fallback: local-advisor)
+codex-builder  -> codex  (fallback: local-advisor)
+final-advisor  -> openai (fallback: local-advisor)
+```
+
+`local-advisor` is deterministic command output from `examples/local-advisor.js`. It is a safe checklist/manual-handoff fallback, not an intelligent model replacement.
+
 ## Running
 
 ```powershell
@@ -48,6 +67,12 @@ ao run --org software-team --goal "review, implement, test, and document this sa
 ```
 
 Use `--apply` only when you want tool-capable providers such as Codex to edit the workspace.
+
+Advisor mode example:
+
+```powershell
+ao org run advisor-council --project ims --goal "plan the safest next implementation step"
+```
 
 ## Durable State
 
@@ -99,3 +124,29 @@ Add orgs to `artificial-orchestrator.config.json`:
 ```
 
 Keep organization output concise. Persisted role output must not include hidden chain-of-thought, secrets, tokens, or private keys.
+
+Roles and providers can specify fallback providers:
+
+```json
+{
+  "providers": {
+    "planner": {
+      "kind": "openai",
+      "model": "gpt-5.5",
+      "fallbackProviders": ["local-advisor"]
+    }
+  },
+  "orgs": {
+    "safe-advisors": {
+      "pipeline": ["planner"],
+      "roles": {
+        "planner": {
+          "provider": "planner",
+          "fallbackProviders": ["local-advisor"],
+          "responsibility": "Plan the work and provide a deterministic fallback checklist when the model is unavailable."
+        }
+      }
+    }
+  }
+}
+```
