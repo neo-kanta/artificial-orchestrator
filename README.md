@@ -58,6 +58,7 @@ From the desktop app you can:
 - See a live run summary and readiness check before the Start button is enabled.
 - Follow a setup checklist that shows the next missing launcher step.
 - Review provider metadata, selected permissions, Claude tool access, and run shape in one place.
+- See sanitized provider readiness warnings, such as a missing `OPENAI_API_KEY`, before starting a run.
 - Keep custom agent role/model editing available without making it the default setup path.
 - Visualize an organization preset as role nodes with animated handoff paths between agents.
 - Inspect role status, active handoff, and role-level blockers directly on the organization map.
@@ -136,6 +137,7 @@ Every run prints the selected project name and workspace path before providers s
 The workspace path must already exist; Artificial Orchestrator fails early instead of creating a new empty project directory from a typo.
 The full provider response stays in `transcript.md`; `handoff.md` and `provider-state.json` keep the provider's concise `handoff` value or `Handoff:` / `## Handoff` section for the next provider.
 If a provider fails, hits a configured limit, or reports `DUET_STATUS: blocked`, the run stops safely and records `phase: "blocked"` in `status.json`.
+If a provider has `fallbackProviders`, the orchestrator tries those providers in order before blocking and records the fallback path in the transcript and durable JSON files.
 If a provider reports structured `status: "done"` or text `DUET_STATUS: done` / `ORCHESTRATOR_STATUS: done`, the run records `phase: "done"` and stops without spending more provider calls.
 If the configured round limit is reached first, the run records `phase: "rounds_exhausted"` so automation can resume or inspect the handoff.
 
@@ -200,11 +202,14 @@ Configured OpenAI providers keep their configured model. Use `--openai-model <mo
 ## AI Organizations
 
 Organization mode runs named roles over the same durable session state. The built-in `software-team` preset includes manager, architect, Claude builder, Codex builder, tester, reviewer, security, and docs roles.
+The built-in `advisor-council` preset is a model-agnostic advisor flow for Codex and Claude. It uses OpenAI/Codex/Claude when available and falls back to a deterministic `local-advisor` command provider when a model or CLI is unavailable.
 
 ```powershell
 ao org list
 ao org show software-team
+ao org show advisor-council
 ao org run software-team --project ims --goal "finish the market data feature cleanly"
+ao org run advisor-council --project ims --goal "plan the safest next implementation step"
 ```
 
 If `--project` and `--workspace` are omitted, organization runs use the active project from the local registry.
@@ -221,6 +226,24 @@ Org runs add:
 - Role-aware entries in `provider-state.json`, `handoff.md`, and `transcript.md`.
 
 See [AI Organizations](docs/orgs.md).
+
+## Advisor Mode
+
+Use advisor mode when you want Artificial Orchestrator to guide Codex and Claude rather than only run the default architect/builder pair:
+
+```powershell
+ao org run advisor-council --goal "Write an implementation plan, then advise Codex and Claude on this change"
+```
+
+Use `--apply` only when you want the Codex-backed role to edit the target workspace:
+
+```powershell
+ao org run advisor-council --workspace C:\Users\kanta\source\repos\my-project --goal "Implement the approved fix" --apply
+```
+
+The repository also includes `AGENTS.md` so Codex receives durable project rules: plan before editing, keep provider failures visible, preserve safe defaults, and run relevant tests after code changes.
+
+See [Advisor Mode](docs/advisor.md).
 
 ## Automation Prompts
 

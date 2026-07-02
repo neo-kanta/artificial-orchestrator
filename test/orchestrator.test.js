@@ -51,6 +51,70 @@ test("flat runs stop and persist blocked status when a provider fails", async (t
   assert.equal(providerState.final.provider, "reviewer");
 });
 
+test("flat runs use configured fallback provider before blocking", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao fallback-run-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const calls = [];
+  const session = await quietStdout(() =>
+    runDuet({
+      goal: "continue with fallback",
+      workspace: root,
+      project: { name: "demo", path: root, source: "workspace" },
+      rounds: 2,
+      apply: false,
+      historyChars: 12000,
+      providers: [
+        {
+          id: "primary",
+          kind: "command",
+          label: "Primary",
+          fallbackProviders: [{ id: "fallback", kind: "command", label: "Fallback" }]
+        },
+        { id: "next", kind: "command", label: "Next" }
+      ],
+      callProvider: async (provider) => {
+        calls.push(provider.id);
+        if (provider.id === "primary") {
+          return {
+            ok: false,
+            text: "Primary model unavailable.",
+            usage: null,
+            costUsd: null,
+            limit: null,
+            errors: ["primary unavailable"],
+            stderr: "",
+            durationMs: 5
+          };
+        }
+
+        return {
+          ok: true,
+          text: "Fallback completed the advisory work.\n\nDUET_STATUS: done",
+          usage: null,
+          costUsd: null,
+          limit: null,
+          errors: [],
+          stderr: "",
+          durationMs: 5
+        };
+      }
+    })
+  );
+
+  assert.deepEqual(calls, ["primary", "fallback"]);
+
+  const status = JSON.parse(await readFile(join(session.dir, "status.json"), "utf8"));
+  assert.equal(status.phase, "done");
+  assert.equal(status.providers.primary.fallback.usedProvider, "fallback");
+
+  const events = await readFile(join(session.dir, "events.ndjson"), "utf8");
+  assert.match(events, /"usedProvider":"fallback"/);
+
+  const transcript = await readFile(join(session.dir, "transcript.md"), "utf8");
+  assert.match(transcript, /Fallback provider used for primary: fallback/);
+});
+
 test("flat runs stop and persist done status when a provider reports completion", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao done-run-"));
   t.after(async () => rm(root, { recursive: true, force: true }));

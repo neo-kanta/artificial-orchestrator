@@ -89,6 +89,9 @@ export function orgRolePrompt({ provider, goal, round, workspaceSnapshot, histor
     `You are the ${provider.orgRole} role in Artificial Orchestrator's ${provider.orgId} AI organization.`,
     `Provider backing this role: ${provider.providerId ?? provider.kind}.`,
     `Responsibility: ${provider.responsibility}`,
+    provider.orgTerminal
+      ? "Pipeline position: FINAL role. If the advisory package is complete, end with status done."
+      : "Pipeline position: intermediate role. Hand off to the next role and use status continue unless you must block.",
     "Coordinate like a disciplined engineering organization: concise handoffs, explicit blockers, and no hidden chain-of-thought.",
     sharedContextLine(),
     apply

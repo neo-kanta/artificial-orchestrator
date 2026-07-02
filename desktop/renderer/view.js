@@ -679,7 +679,13 @@ function renderSummary(elements, items) {
 }
 
 function providerMeta(provider) {
-  return [provider.kind, provider.role && provider.role !== "provider" ? provider.role : null, provider.model, provider.configured ? "configured" : null]
+  return [
+    provider.kind,
+    provider.role && provider.role !== "provider" ? provider.role : null,
+    provider.model,
+    provider.configured ? "configured" : null,
+    provider.readiness?.label
+  ]
     .filter(Boolean)
     .join(" | ");
 }

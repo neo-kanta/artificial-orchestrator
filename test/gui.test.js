@@ -9,6 +9,16 @@ import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiS
 import { runAnalytics } from "../desktop/renderer/view.js";
 
 test("gui state exposes projects and sanitized provider choices", async (t) => {
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  t.after(() => {
+    if (originalOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenAiKey;
+    }
+  });
+
   const root = await mkdtemp(join(tmpdir(), "ao gui-state-"));
   t.after(async () => rm(root, { recursive: true, force: true }));
 
@@ -59,15 +69,25 @@ test("gui state exposes projects and sanitized provider choices", async (t) => {
   });
 
   const local = state.providers.find((provider) => provider.id === "local");
-  assert.deepEqual(local, {
-    id: "local",
-    label: "Local Runner",
-    kind: "command",
-    role: "reviewer",
-    model: null,
-    configured: true
+  assert.equal(local.id, "local");
+  assert.equal(local.label, "Local Runner");
+  assert.equal(local.kind, "command");
+  assert.equal(local.role, "reviewer");
+  assert.equal(local.model, null);
+  assert.equal(local.configured, true);
+  assert.deepEqual(local.readiness, {
+    status: "unchecked",
+    label: "External command",
+    message: "Readiness is checked when the configured command starts."
   });
-  assert.doesNotMatch(JSON.stringify(state.providers), /do-not-render|secret-tool|API_KEY/);
+
+  const openai = state.providers.find((provider) => provider.id === "openai");
+  assert.deepEqual(openai.readiness, {
+    status: "blocked",
+    label: "Missing OPENAI_API_KEY",
+    message: "Set OPENAI_API_KEY before starting OpenAI-backed providers."
+  });
+  assert.doesNotMatch(JSON.stringify(state.providers), /do-not-render|secret-tool/);
 });
 
 test("gui run options validate launch input and reuse provider resolution", async (t) => {

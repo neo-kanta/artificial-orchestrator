@@ -36,6 +36,67 @@ test("resolves built-in and configured providers", () => {
   assert.equal(providers[1].model, "gpt-test");
 });
 
+test("resolves provider fallback chain", () => {
+  const [provider] = resolveProviders({
+    config: {
+      providers: {
+        primary: {
+          id: "primary",
+          kind: "command",
+          command: "missing-ai",
+          fallbackProviders: ["backup"]
+        },
+        backup: {
+          id: "backup",
+          kind: "command",
+          command: "node",
+          role: "local-fallback"
+        }
+      }
+    },
+    providerList: "primary",
+    runtime: {
+      workspace: "C:/repo",
+      timeoutMs: 1000
+    }
+  });
+
+  assert.equal(provider.id, "primary");
+  assert.equal(provider.fallbackProviders.length, 1);
+  assert.equal(provider.fallbackProviders[0].id, "backup");
+  assert.equal(provider.fallbackProviders[0].workspace, "C:/repo");
+});
+
+test("rejects provider fallback cycles", () => {
+  assert.throws(
+    () =>
+      resolveProviders({
+        config: {
+          providers: {
+            primary: {
+              id: "primary",
+              kind: "command",
+              command: "primary",
+              fallbackProviders: ["backup"]
+            },
+            backup: {
+              id: "backup",
+              kind: "command",
+              command: "backup",
+              fallbackProviders: ["primary"]
+            }
+          }
+        },
+        providerList: "primary",
+        runtime: {
+          workspace: "C:/repo",
+          timeoutMs: 1000
+        }
+      }),
+    /fallback cycle/i
+  );
+});
+
 test("resolves built-in OpenAI provider defaults and runtime overrides", () => {
   const [provider] = resolveProviders({
     config: {},

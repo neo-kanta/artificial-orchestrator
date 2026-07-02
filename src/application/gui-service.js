@@ -144,7 +144,8 @@ function publicProviders(registry, config) {
       kind: provider.kind ?? "command",
       role: provider.role ?? "provider",
       model: provider.model ?? defaultModelForKind(provider.kind),
-      configured: Boolean(config?.providers?.[provider.id])
+      configured: Boolean(config?.providers?.[provider.id]),
+      readiness: providerReadiness(provider)
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -153,6 +154,39 @@ function defaultModelForKind(kind) {
   if (kind === "codex") return "gpt-5.4-mini";
   if (kind === "openai") return "gpt-5.5";
   return null;
+}
+
+function providerReadiness(provider) {
+  if (provider.kind === "openai") {
+    const hasKey = Boolean(process.env.OPENAI_API_KEY);
+    return {
+      status: hasKey ? "ready" : "blocked",
+      label: hasKey ? "API key available" : "Missing OPENAI_API_KEY",
+      message: hasKey ? "OPENAI_API_KEY is available to the desktop process." : "Set OPENAI_API_KEY before starting OpenAI-backed providers."
+    };
+  }
+
+  if (provider.kind === "codex") {
+    return {
+      status: "unchecked",
+      label: "Codex CLI auth",
+      message: "Uses the local Codex CLI, auth, quota, and sandbox settings."
+    };
+  }
+
+  if (provider.kind === "claude") {
+    return {
+      status: "unchecked",
+      label: "Claude CLI auth",
+      message: "Uses the local Claude CLI, auth, quota, and usage limits."
+    };
+  }
+
+  return {
+    status: "unchecked",
+    label: "External command",
+    message: "Readiness is checked when the configured command starts."
+  };
 }
 
 function publicOrgs(orgs) {

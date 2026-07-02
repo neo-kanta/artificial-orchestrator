@@ -9,7 +9,8 @@
       "reasoning": "medium",
       "responseFormat": "json",
       "maxOutputTokens": 4096,
-      "timeoutMs": 300000
+      "timeoutMs": 300000,
+      "fallbackProviders": ["local-advisor"]
     },
     "local-reviewer": {
       "label": "Local Reviewer",
@@ -40,9 +41,42 @@
       "promptMode": "stdin",
       "parser": "text",
       "timeoutMs": 300000
+    },
+    "claude-advisor": {
+      "label": "Claude Advisor",
+      "kind": "claude",
+      "role": "advisor",
+      "fallbackProviders": ["local-advisor"],
+      "timeoutMs": 300000
     }
   },
   "orgs": {
+    "custom-advisor-council": {
+      "label": "Custom Advisor Council",
+      "pipeline": ["advisor", "reviewer", "builder", "final"],
+      "roles": {
+        "advisor": {
+          "provider": "openai",
+          "fallbackProviders": ["local-advisor"],
+          "responsibility": "Write the implementation plan first, choose whether Codex or Claude should be used, and define safety guardrails."
+        },
+        "reviewer": {
+          "provider": "claude-advisor",
+          "fallbackProviders": ["local-advisor"],
+          "responsibility": "Review architecture and risk; if Claude is unavailable, provide deterministic checklist guidance."
+        },
+        "builder": {
+          "provider": "codex",
+          "fallbackProviders": ["local-advisor"],
+          "responsibility": "Implement or propose scoped code changes; if Codex is unavailable, produce exact manual steps and checks."
+        },
+        "final": {
+          "provider": "openai",
+          "fallbackProviders": ["local-advisor"],
+          "responsibility": "Summarize the plan, changes, verification evidence, and unresolved blockers."
+        }
+      }
+    },
     "software-team": {
       "label": "Software Team",
       "pipeline": ["manager", "architect", "builder-claude", "builder-codex", "tester", "reviewer", "security", "docs"],
