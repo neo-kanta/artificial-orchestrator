@@ -308,7 +308,7 @@ export function renderRun(elements, run, openPath) {
   renderRecovery(elements, run?.recovery ?? null, openPath);
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
-  renderFiles(elements, run?.files ?? {}, openPath);
+  renderFiles(elements, run?.fileDetails ?? run?.files ?? {}, openPath);
   updateOrgActivity(elements, run?.activeRole ?? null, run?.org ?? null);
 }
 
@@ -609,35 +609,67 @@ function renderBlockers(elements, blockers) {
   }
 }
 
-function renderFiles(elements, files, openPath) {
+function renderFiles(elements, source, openPath) {
   elements.fileList.replaceChildren();
-  const entries = [
-    ["transcript", files.transcript],
-    ["events", files.events],
-    ["status", files.status],
-    ["handoff", files.handoff],
-    ["provider state", files.providerState],
-    ["org state", files.orgState]
-  ].filter((entry) => entry[1]);
+  const entries = fileActionEntries(source);
 
   if (entries.length === 0) {
     elements.fileList.append(empty("No files"));
     return;
   }
 
-  for (const [label, path] of entries) {
+  for (const file of entries) {
     const row = document.createElement("div");
-    row.className = "file-row";
+    row.className = `file-row ${file.available ? "" : "missing"}`;
     const text = document.createElement("span");
-    text.textContent = path;
+    text.textContent = file.path;
+    const meta = document.createElement("small");
+    meta.className = "file-meta";
+    meta.textContent = file.detail;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "ghost-button";
-    button.textContent = label;
-    button.addEventListener("click", () => openPath(path));
-    row.append(button, text);
+    button.textContent = file.label;
+    button.disabled = !file.available;
+    button.title = file.available ? file.path : `${file.path} - ${file.error ?? "Unavailable"}`;
+    if (file.available) button.addEventListener("click", () => openPath(file.path));
+    row.append(button, text, meta);
     elements.fileList.append(row);
   }
+}
+
+function fileActionEntries(source = {}) {
+  if (Array.isArray(source)) {
+    return source
+      .filter((file) => file?.path)
+      .map((file) => ({
+        key: file.key,
+        label: file.label ?? titleCase(file.key),
+        path: file.path,
+        available: file.available ?? file.exists !== false,
+        detail: file.detail ?? fileDetail(file),
+        error: file.error ?? null
+      }));
+  }
+
+  const files = source ?? {};
+  return [
+    ["transcript", "Transcript", files.transcript],
+    ["status", "Status", files.status],
+    ["handoff", "Handoff", files.handoff],
+    ["providerState", "Provider state", files.providerState],
+    ["orgState", "Org state", files.orgState],
+    ["events", "Events", files.events]
+  ]
+    .filter((entry) => entry[2])
+    .map(([key, label, path]) => ({
+      key,
+      label,
+      path,
+      available: true,
+      detail: pathLeaf(path),
+      error: null
+    }));
 }
 
 function renderProcessBanner(elements, processState = {}) {
@@ -902,6 +934,12 @@ function timeLabel(value) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function fileDetail(file) {
+  if (file.exists === false) return file.error ?? "Missing";
+  const parts = [file.modifiedAt ? timeLabel(file.modifiedAt) : null, formatBytes(file.sizeBytes)].filter(Boolean);
+  return parts.join(" | ") || pathLeaf(file.path);
 }
 
 function orgGraphFromPreset(org) {
@@ -1284,6 +1322,21 @@ function compactNumber(value) {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
   return String(value);
+}
+
+function formatBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+}
+
+function pathLeaf(path) {
+  const parts = String(path ?? "").split(/[\\/]+/).filter(Boolean);
+  return parts.at(-1) ?? String(path ?? "");
 }
 
 function dateLabel(value) {

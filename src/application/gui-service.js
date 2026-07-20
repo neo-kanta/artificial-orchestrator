@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { loadConfig, providerRegistry } from "../platform/config.js";
 import { handoffForTurn } from "../domain/handoff.js";
@@ -65,10 +65,11 @@ export async function guiRunHistory(workspace, options = {}) {
 
 export async function guiRunSnapshot(workspace, options = {}) {
   const run = options.sessionId ? await statusForSession(workspace, options.sessionId) : await latestStatus(workspace);
-  const [transcript, handoff, agentMessages] = await Promise.all([
+  const [transcript, handoff, agentMessages, fileDetails] = await Promise.all([
     readTail(run.files.transcript, Number(options.maxTranscriptChars ?? DEFAULT_TRANSCRIPT_CHARS)),
     readTail(run.files.handoff, Number(options.maxHandoffChars ?? 6000)),
-    readAgentMessages(run.session, options)
+    readAgentMessages(run.session, options),
+    publicFileDetails(run.files)
   ]);
   const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
   const final = run.status?.final ?? run.providerState?.final ?? null;
@@ -88,6 +89,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
     activeRole: run.providerState?.handoffs?.at(-1)?.provider ?? final?.provider ?? null,
     latestHandoff: run.providerState?.handoffs?.at(-1)?.handoff ?? "",
     files: run.files,
+    fileDetails,
     transcript,
     handoff,
     agentMessages,
@@ -132,8 +134,60 @@ function publicRunHistoryEntry(run) {
       : null,
     blockers: collectBlockers(run.status, final),
     providerCount: providers.length,
-    files: run.files
+    files: run.files,
+    fileDetails: publicFileDetailStubs(run.files)
   };
+}
+
+async function publicFileDetails(files = {}) {
+  return Promise.all(publicFileDetailStubs(files).map(withFileStats));
+}
+
+function publicFileDetailStubs(files = {}) {
+  return [
+    ["transcript", "Transcript", files.transcript],
+    ["status", "Status", files.status],
+    ["handoff", "Handoff", files.handoff],
+    ["providerState", "Provider state", files.providerState],
+    ["orgState", "Org state", files.orgState],
+    ["events", "Events", files.events]
+  ]
+    .filter((entry) => entry[2])
+    .map(([key, label, path]) => ({
+      key,
+      label,
+      path,
+      exists: null,
+      sizeBytes: null,
+      modifiedAt: null,
+      error: null
+    }));
+}
+
+async function withFileStats(file) {
+  try {
+    const info = await stat(file.path);
+    return {
+      ...file,
+      exists: info.isFile(),
+      sizeBytes: info.isFile() ? info.size : null,
+      modifiedAt: info.isFile() ? info.mtime.toISOString() : null,
+      error: info.isFile() ? null : "Path is not a file."
+    };
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return {
+        ...file,
+        exists: false,
+        error: "File has not been written yet."
+      };
+    }
+    return {
+      ...file,
+      exists: false,
+      error: error?.message ? String(error.message) : "File is unavailable."
+    };
+  }
 }
 
 function publicProviders(registry, config) {

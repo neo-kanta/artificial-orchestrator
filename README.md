@@ -69,6 +69,7 @@ From the desktop app you can:
 - Review phase, project/org context, blockers, latest handoff, and durable file buttons directly in the session page.
 - Use the Recovery Center to see blocked, running, done, or round-limited run guidance with prioritized next actions.
 - Browse recent durable runs for the selected project and reload an older run's transcript/status from its session files.
+- See whether durable files are available yet, including last modified time and size when known.
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.
 
 The desktop shell does not display provider secrets or bypass provider authentication, quota, payment, approval, or usage limits. Provider blockers are shown in the monitor and persisted in the same session files as CLI runs.

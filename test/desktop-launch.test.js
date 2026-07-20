@@ -291,6 +291,7 @@ test("desktop session overview summarizes run state and durable files", () => {
   assert.equal(overview.team, "Organization - Software Team");
   assert.deepEqual(overview.blockers, ["Provider quota needs reset before the next handoff can run."]);
   assert.match(overview.latestHandoff, /durable file links/);
+  assert.equal(overview.fileSummary, "3 of 3 available");
   assert.deepEqual(
     overview.files.map((file) => [file.key, file.label, file.detail]),
     [
@@ -310,4 +311,37 @@ test("desktop session overview summarizes run state and durable files", () => {
       ["events", "events.ndjson"]
     ]
   );
+});
+
+test("desktop session file actions show availability and file metadata", () => {
+  const actions = sessionFileActions([
+    {
+      key: "transcript",
+      label: "Transcript",
+      path: "C:\\work\\desktop\\.duet\\sessions\\20260630\\transcript.md",
+      exists: true,
+      sizeBytes: 1536,
+      modifiedAt: "2026-06-30T05:00:00.000Z"
+    },
+    {
+      key: "events",
+      label: "Events",
+      path: "C:\\work\\desktop\\.duet\\sessions\\20260630\\events.ndjson",
+      exists: false,
+      error: "File has not been written yet."
+    }
+  ]);
+
+  assert.equal(actions[0].available, true);
+  assert.match(actions[0].detail, /1\.5 KB|1.5 KB/);
+  assert.equal(actions[1].available, false);
+  assert.equal(actions[1].detail, "File has not been written yet.");
+
+  const overview = sessionRunOverview({
+    fileDetails: actions,
+    files: {
+      transcript: "legacy transcript path"
+    }
+  });
+  assert.equal(overview.fileSummary, "1 of 2 available");
 });

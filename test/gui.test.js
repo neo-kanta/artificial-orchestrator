@@ -235,6 +235,15 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.deepEqual(snapshot.blockers, ["missing credentials"]);
   assert.equal(snapshot.files.transcript, join(session.dir, "transcript.md"));
   assert.equal(snapshot.files.events, join(session.dir, "events.ndjson"));
+  assert.equal(snapshot.fileDetails.length, 5);
+  const fileDetails = new Map(snapshot.fileDetails.map((file) => [file.key, file]));
+  assert.equal(fileDetails.get("transcript").exists, true);
+  assert.equal(fileDetails.get("status").exists, true);
+  assert.equal(fileDetails.get("handoff").exists, true);
+  assert.equal(fileDetails.get("providerState").exists, true);
+  assert.equal(fileDetails.get("events").exists, true);
+  assert.match(fileDetails.get("transcript").modifiedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(typeof fileDetails.get("transcript").sizeBytes, "number");
   assert.equal(snapshot.agentMessages.length, 1);
   assert.equal(snapshot.agentMessages[0].agentId, "reviewer");
   assert.equal(snapshot.agentMessages[0].provider, "reviewer");
@@ -249,6 +258,27 @@ test("gui can switch projects and summarize durable run files", async (t) => {
     snapshot.recovery.files.map((file) => file.key).slice(0, 4),
     ["providerState", "status", "handoff", "transcript"]
   );
+});
+
+test("gui run snapshot marks durable files that have not been written yet", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-file-details-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  await createSession(workspace, "wait for first provider turn", {
+    project: { name: "files", path: resolve(workspace), source: "named" }
+  });
+
+  const snapshot = await guiRunSnapshot(workspace);
+  const events = snapshot.fileDetails.find((file) => file.key === "events");
+
+  assert.equal(snapshot.phase, "running");
+  assert.equal(events.exists, false);
+  assert.equal(events.sizeBytes, null);
+  assert.equal(events.modifiedAt, null);
+  assert.equal(events.error, "File has not been written yet.");
+  assert.equal(snapshot.agentMessages.length, 0);
 });
 
 test("gui state exposes recent runs and can load a selected session", async (t) => {
