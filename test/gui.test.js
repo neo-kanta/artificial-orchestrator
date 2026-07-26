@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import { appendTurn, createSession, finalizeSession } from "../src/logger.js";
-import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
+import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, resolveGuiRunFile, useGuiProject } from "../src/gui.js";
 import { runAnalytics } from "../desktop/renderer/view.js";
 
 test("gui state exposes projects and sanitized provider choices", async (t) => {
@@ -235,6 +235,17 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.deepEqual(snapshot.blockers, ["missing credentials"]);
   assert.equal(snapshot.files.transcript, join(session.dir, "transcript.md"));
   assert.equal(snapshot.files.events, join(session.dir, "events.ndjson"));
+  assert.deepEqual(
+    snapshot.fileActions.map((file) => [file.key, file.available]),
+    [
+      ["transcript", true],
+      ["events", true],
+      ["status", true],
+      ["handoff", true],
+      ["providerState", true]
+    ]
+  );
+  assert.match(snapshot.fileActions.find((file) => file.key === "transcript").detail, /transcript\.md/);
   assert.equal(snapshot.agentMessages.length, 1);
   assert.equal(snapshot.agentMessages[0].agentId, "reviewer");
   assert.equal(snapshot.agentMessages[0].provider, "reviewer");
@@ -248,6 +259,49 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.deepEqual(
     snapshot.recovery.files.map((file) => file.key).slice(0, 4),
     ["providerState", "status", "handoff", "transcript"]
+  );
+});
+
+test("gui run file actions validate durable file keys and availability", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "ao gui-file-actions-"));
+  t.after(async () => rm(root, { recursive: true, force: true }));
+
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+  const session = await createSession(workspace, "inspect durable file actions", {
+    project: { name: "files", path: resolve(workspace), source: "named" }
+  });
+
+  const snapshot = await guiRunSnapshot(workspace);
+  const transcript = snapshot.fileActions.find((file) => file.key === "transcript");
+  const events = snapshot.fileActions.find((file) => file.key === "events");
+
+  assert.equal(transcript.available, true);
+  assert.equal(transcript.exists, true);
+  assert.equal(transcript.path, join(session.dir, "transcript.md"));
+  assert.equal(transcript.sessionId, snapshot.id);
+  assert.equal(typeof transcript.sizeBytes, "number");
+  assert.match(transcript.modifiedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+  assert.equal(events.available, false);
+  assert.equal(events.exists, false);
+  assert.match(events.unavailableReason, /Events has not been written yet/);
+
+  const resolved = await resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "transcript" });
+  assert.equal(resolved.path, join(session.dir, "transcript.md"));
+  assert.equal(resolved.available, true);
+
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "events" }),
+    /Events has not been written yet/
+  );
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "..\\outside" }),
+    /Unknown durable run file/
+  );
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: "..\\outside", key: "transcript" }),
+    /Run id must be a session directory name/
   );
 });
 

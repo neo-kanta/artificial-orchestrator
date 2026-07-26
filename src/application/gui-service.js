@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { lstat, readFile } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { loadConfig, providerRegistry } from "../platform/config.js";
 import { handoffForTurn } from "../domain/handoff.js";
 import { listOrgs } from "../platform/orgs.js";
@@ -9,13 +9,28 @@ import { latestStatus, recentStatuses, statusForSession } from "../orchestration
 import { collectBlockers, publicOrgState, publicProviderState } from "../domain/run-status.js";
 import { recoveryCenterForRun } from "../domain/recovery.js";
 import { prepareRunOptions } from "./run-options.js";
-import { assertDirectory, readTail } from "../shared/workspace.js";
+import { assertDirectory, assertWorkspaceDirectory, readTail } from "../shared/workspace.js";
 import { compactText } from "../shared/text.js";
 
 const DEFAULT_TRANSCRIPT_CHARS = 30000;
 const DEFAULT_AGENT_MESSAGE_CHARS = 6000;
 const DEFAULT_AGENT_HANDOFF_CHARS = 1600;
 const DEFAULT_HISTORY_LIMIT = 8;
+const RUN_FILE_DEFINITIONS = [
+  { key: "transcript", label: "Transcript", filename: "transcript.md" },
+  { key: "events", label: "Events", filename: "events.ndjson" },
+  { key: "status", label: "Status", filename: "status.json" },
+  { key: "handoff", label: "Handoff", filename: "handoff.md" },
+  { key: "providerState", label: "Provider state", filename: "provider-state.json" },
+  { key: "orgState", label: "Organization state", filename: "org-state.json", optional: true }
+];
+const RUN_FILE_KEYS = new Map(
+  RUN_FILE_DEFINITIONS.flatMap((file) => [
+    [file.key.toLowerCase(), file.key],
+    [file.filename.toLowerCase(), file.key],
+    [file.filename.replace(/\.[^.]+$/, "").toLowerCase(), file.key]
+  ])
+);
 
 export async function guiState(options = {}) {
   const projects = await listProjects({ registryPath: options.registryPath });
@@ -65,11 +80,13 @@ export async function guiRunHistory(workspace, options = {}) {
 
 export async function guiRunSnapshot(workspace, options = {}) {
   const run = options.sessionId ? await statusForSession(workspace, options.sessionId) : await latestStatus(workspace);
+  assertRunSessionInWorkspace(run, workspace);
   const [transcript, handoff, agentMessages] = await Promise.all([
     readTail(run.files.transcript, Number(options.maxTranscriptChars ?? DEFAULT_TRANSCRIPT_CHARS)),
     readTail(run.files.handoff, Number(options.maxHandoffChars ?? 6000)),
     readAgentMessages(run.session, options)
   ]);
+  const fileActions = await publicRunFileActions(run);
   const phase = run.status?.phase ?? run.providerState?.phase ?? "unknown";
   const final = run.status?.final ?? run.providerState?.final ?? null;
 
@@ -88,6 +105,7 @@ export async function guiRunSnapshot(workspace, options = {}) {
     activeRole: run.providerState?.handoffs?.at(-1)?.provider ?? final?.provider ?? null,
     latestHandoff: run.providerState?.handoffs?.at(-1)?.handoff ?? "",
     files: run.files,
+    fileActions,
     transcript,
     handoff,
     agentMessages,
@@ -95,8 +113,25 @@ export async function guiRunSnapshot(workspace, options = {}) {
   };
   return {
     ...snapshot,
-    recovery: recoveryCenterForRun(snapshot)
+    recovery: recoveryWithFileActions(recoveryCenterForRun(snapshot), fileActions)
   };
+}
+
+export async function resolveGuiRunFile({ workspace, sessionId, key } = {}) {
+  const workspaceValue = String(workspace ?? "").trim();
+  if (!workspaceValue) throw new Error("Choose a workspace before opening a run file.");
+
+  const fileKey = normalizeRunFileKey(key);
+  const runIdValue = normalizeSessionId(sessionId);
+  const resolvedWorkspace = resolve(workspaceValue);
+  await assertWorkspaceDirectory(resolvedWorkspace);
+
+  const run = await statusForSession(resolvedWorkspace, runIdValue);
+  assertRunSessionInWorkspace(run, resolvedWorkspace);
+  const file = (await publicRunFileActions(run)).find((item) => item.key === fileKey);
+  if (!file) throw new Error(`Run file is not available: ${fileKey}.`);
+  if (!file.available) throw new Error(file.unavailableReason ?? `${file.label} is not available.`);
+  return file;
 }
 
 function publicRunHistoryEntry(run) {
@@ -215,6 +250,117 @@ async function readAgentMessages(sessionDir, options = {}) {
     .split(/\r?\n/)
     .map((line, index) => publicAgentMessage(parseEventLine(line), index, maxTextChars, maxHandoffChars))
     .filter(Boolean);
+}
+
+async function publicRunFileActions(run) {
+  const sessionId = runId(run);
+  const actions = await Promise.all(
+    RUN_FILE_DEFINITIONS.map(async (definition) => {
+      if (definition.optional && !run.files?.[definition.key]) return null;
+      return runFileAction(run.session, sessionId, definition);
+    })
+  );
+  return actions.filter(Boolean);
+}
+
+async function runFileAction(sessionDir, sessionId, definition) {
+  const path = join(sessionDir, definition.filename);
+  const base = {
+    key: definition.key,
+    label: definition.label,
+    path,
+    sessionId,
+    exists: false,
+    available: false,
+    sizeBytes: null,
+    modifiedAt: null,
+    detail: `${definition.filename} | not written yet`,
+    unavailableReason: `${definition.label} has not been written yet.`
+  };
+
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) {
+      return {
+        ...base,
+        exists: true,
+        detail: `${definition.filename} | blocked symbolic link`,
+        unavailableReason: `${definition.label} is a symbolic link and will not be opened.`
+      };
+    }
+
+    if (!info.isFile()) {
+      return {
+        ...base,
+        exists: true,
+        detail: `${definition.filename} | not a regular file`,
+        unavailableReason: `${definition.label} is not a regular file.`
+      };
+    }
+
+    return {
+      ...base,
+      exists: true,
+      available: true,
+      sizeBytes: info.size,
+      modifiedAt: info.mtime.toISOString(),
+      detail: `${definition.filename} | ${formatBytes(info.size)} | modified ${info.mtime.toISOString()}`,
+      unavailableReason: null
+    };
+  } catch (error) {
+    if (error.code === "ENOENT") return base;
+    throw error;
+  }
+}
+
+function recoveryWithFileActions(recovery, fileActions) {
+  const byKey = new Map(fileActions.map((file) => [file.key, file]));
+  return {
+    ...recovery,
+    files: (recovery.files ?? []).map((file) => {
+      const action = byKey.get(file.key);
+      if (!action) return file;
+      return {
+        ...file,
+        ...action,
+        detail: action.detail ? `${file.detail} ${action.detail}` : file.detail
+      };
+    })
+  };
+}
+
+function normalizeRunFileKey(value) {
+  const raw = String(value ?? "").trim();
+  const key = RUN_FILE_KEYS.get(raw.toLowerCase());
+  if (!key) throw new Error(`Unknown durable run file "${raw || "(empty)"}".`);
+  return key;
+}
+
+function normalizeSessionId(value) {
+  const id = String(value ?? "").trim();
+  if (!id) throw new Error("Choose a run before opening a file.");
+  return id;
+}
+
+function assertRunSessionInWorkspace(run, workspace) {
+  const sessionsRoot = resolve(workspace, ".duet", "sessions");
+  assertContainedPath(run.session, sessionsRoot, "Run session");
+}
+
+function assertContainedPath(path, root, label) {
+  const resolvedPath = resolve(path);
+  const resolvedRoot = resolve(root);
+  const child = relative(resolvedRoot, resolvedPath);
+  if (child === "" || (!child.startsWith("..") && !isAbsolute(child))) return;
+  throw new Error(`${label} is outside the selected workspace.`);
+}
+
+function formatBytes(size) {
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
 function parseEventLine(line) {

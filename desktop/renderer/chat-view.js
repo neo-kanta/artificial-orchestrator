@@ -74,11 +74,12 @@ export function sessionRunOverview(run) {
     team: sessionTeamLabel(run),
     blockers,
     latestHandoff: compactLine(run?.latestHandoff || run?.handoff || "", 260),
-    files: sessionFileActions(run?.files)
+    files: sessionFileActions(run?.files, run?.fileActions)
   };
 }
 
-export function sessionFileActions(files = {}) {
+export function sessionFileActions(files = {}, actions = []) {
+  const actionByKey = new Map((Array.isArray(actions) ? actions : []).map((file) => [file.key, file]));
   return [
     ["transcript", "Transcript", files.transcript],
     ["status", "Status", files.status],
@@ -88,12 +89,21 @@ export function sessionFileActions(files = {}) {
     ["events", "Events", files.events]
   ]
     .filter((entry) => entry[2])
-    .map(([key, label, path]) => ({
-      key,
-      label,
-      path,
-      detail: pathLeaf(path)
-    }));
+    .map(([key, label, path]) => {
+      const action = actionByKey.get(key) ?? {};
+      return {
+        key,
+        label,
+        path: action.path ?? path,
+        sessionId: action.sessionId ?? null,
+        exists: action.exists ?? null,
+        available: action.available ?? null,
+        sizeBytes: action.sizeBytes ?? null,
+        modifiedAt: action.modifiedAt ?? null,
+        unavailableReason: action.unavailableReason ?? null,
+        detail: action.detail ?? pathLeaf(path)
+      };
+    });
 }
 
 function renderSessionList(elements, runs, selectedRunId, onSelectRun) {
@@ -205,8 +215,9 @@ function sessionOverviewNode(overview, onOpenPath) {
       button.type = "button";
       button.className = "session-file-button";
       button.textContent = file.label;
-      button.title = file.path;
-      button.addEventListener("click", () => onOpenPath(file.path));
+      button.title = file.detail ?? file.path ?? "";
+      button.disabled = file.available === false;
+      button.addEventListener("click", () => onOpenPath(file));
       fileBar.append(button);
     }
     panel.append(fileBar);

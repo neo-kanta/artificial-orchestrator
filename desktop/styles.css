@@ -961,6 +961,11 @@ textarea:focus {
   border-color: var(--accent);
 }
 
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .validation-message {
   min-height: 18px;
   text-align: right;
@@ -1484,6 +1489,10 @@ textarea:focus {
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
+}
+
+.file-row.file-unavailable span {
+  color: #9d9288;
 }
 
 .blocker {
@@ -2072,6 +2081,11 @@ button.chat-tool:hover,
 .session-file-button:hover {
   border-color: var(--accent);
   color: var(--accent-strong);
+}
+
+.session-file-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .chat-composer {

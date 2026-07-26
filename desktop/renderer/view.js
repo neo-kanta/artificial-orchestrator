@@ -1,3 +1,4 @@
+import { sessionFileActions } from "./chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
 
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
@@ -296,7 +297,7 @@ export function updateOrgActivity(elements, activeRole, runtimeState = null) {
   }
 }
 
-export function renderRun(elements, run, openPath) {
+export function renderRun(elements, run, openFile) {
   const phase = run?.phase ?? "idle";
   elements.phaseBadge.textContent = phase;
   elements.phaseBadge.className = `phase-badge phase-${phase.replace(/_/g, "-")}`;
@@ -305,10 +306,10 @@ export function renderRun(elements, run, openPath) {
   elements.transcriptView.textContent = run?.transcript ?? "";
   elements.handoffView.textContent = run?.latestHandoff || run?.handoff || "";
 
-  renderRecovery(elements, run?.recovery ?? null, openPath);
+  renderRecovery(elements, run?.recovery ?? null, openFile);
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
-  renderFiles(elements, run?.files ?? {}, openPath);
+  renderFiles(elements, run, openFile);
   updateOrgActivity(elements, run?.activeRole ?? null, run?.org ?? null);
 }
 
@@ -535,7 +536,7 @@ function renderStateList(elements, providers) {
   }
 }
 
-function renderRecovery(elements, recovery, openPath) {
+function renderRecovery(elements, recovery, openFile) {
   const state = recovery ?? {
     severity: "neutral",
     title: "No run loaded",
@@ -567,7 +568,7 @@ function renderRecovery(elements, recovery, openPath) {
     elements.recoveryActions.append(group);
   }
 
-  const files = Array.isArray(state.files) ? state.files.filter((file) => file?.path) : [];
+  const files = Array.isArray(state.files) ? state.files.filter((file) => file?.key) : [];
   if (files.length > 0) {
     const group = document.createElement("div");
     group.className = "recovery-action-group";
@@ -583,9 +584,11 @@ function renderRecovery(elements, recovery, openPath) {
       button.type = "button";
       button.className = "ghost-button";
       button.textContent = file.label ?? file.key ?? "Open";
-      button.addEventListener("click", () => openPath(file.path));
+      button.disabled = file.available === false;
+      button.title = file.path ?? "";
+      button.addEventListener("click", () => openFile(file));
       const detail = document.createElement("span");
-      detail.textContent = file.detail ?? file.path;
+      detail.textContent = file.detail ?? file.path ?? "";
       row.append(button, detail);
       group.append(row);
     }
@@ -609,32 +612,28 @@ function renderBlockers(elements, blockers) {
   }
 }
 
-function renderFiles(elements, files, openPath) {
+function renderFiles(elements, run, openFile) {
   elements.fileList.replaceChildren();
-  const entries = [
-    ["transcript", files.transcript],
-    ["events", files.events],
-    ["status", files.status],
-    ["handoff", files.handoff],
-    ["provider state", files.providerState],
-    ["org state", files.orgState]
-  ].filter((entry) => entry[1]);
+  const entries = sessionFileActions(run?.files ?? {}, run?.fileActions ?? []);
 
   if (entries.length === 0) {
     elements.fileList.append(empty("No files"));
     return;
   }
 
-  for (const [label, path] of entries) {
+  for (const file of entries) {
     const row = document.createElement("div");
     row.className = "file-row";
+    row.classList.toggle("file-unavailable", file.available === false);
     const text = document.createElement("span");
-    text.textContent = path;
+    text.textContent = file.detail ?? file.path ?? file.key;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "ghost-button";
-    button.textContent = label;
-    button.addEventListener("click", () => openPath(path));
+    button.textContent = file.label;
+    button.disabled = file.available === false;
+    button.title = file.path ?? "";
+    button.addEventListener("click", () => openFile(file));
     row.append(button, text);
     elements.fileList.append(row);
   }

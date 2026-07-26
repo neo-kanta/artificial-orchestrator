@@ -4,6 +4,7 @@ export {
   guiRunHistory,
   guiRunSnapshot,
   guiState,
+  resolveGuiRunFile,
   startGuiRun,
   useGuiProject
 } from "./application/gui-service.js";

@@ -182,7 +182,9 @@ Important files:
 - `provider-state.json`: latest per-provider state, limits, usage, and handoffs.
 - `org-state.json`: role statuses and blockers for organization runs.
 
-The desktop app opens these files directly when they exist. The CLI can inspect the same state:
+The desktop app can open these files when they exist. File buttons show whether each durable file exists, plus size and modified time when available. Opening a file goes through the app service by workspace, session id, and known durable file key; missing files, symlinks, non-files, and out-of-workspace session targets are blocked instead of opened.
+
+The CLI can inspect the same state:
 
 ```powershell
 ao status
