@@ -89,11 +89,13 @@ export function sessionFileActions(source = {}) {
         key: file.key,
         label: file.label ?? titleCase(file.key),
         path: file.path,
+        sessionId: file.sessionId ?? null,
         available: file.available ?? file.exists !== false,
         detail: file.detail ?? fileDetail(file),
         modifiedAt: file.modifiedAt ?? null,
         sizeBytes: Number.isFinite(Number(file.sizeBytes)) ? Number(file.sizeBytes) : null,
-        error: file.error ?? null
+        error: file.error ?? null,
+        unavailableReason: file.unavailableReason ?? file.error ?? null
       }));
   }
 
@@ -111,11 +113,13 @@ export function sessionFileActions(source = {}) {
       key,
       label,
       path,
+      sessionId: null,
       available: true,
       detail: pathLeaf(path),
       modifiedAt: null,
       sizeBytes: null,
-      error: null
+      error: null,
+      unavailableReason: null
     }));
 }
 
@@ -234,7 +238,7 @@ function sessionOverviewNode(overview, onOpenPath) {
       const detail = document.createElement("small");
       detail.textContent = file.detail;
       button.append(label, detail);
-      if (file.available) button.addEventListener("click", () => onOpenPath(file.path));
+      if (file.available) button.addEventListener("click", () => onOpenPath(file));
       fileBar.append(button);
     }
     panel.append(fileBar);

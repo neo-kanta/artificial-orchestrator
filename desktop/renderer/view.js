@@ -296,7 +296,7 @@ export function updateOrgActivity(elements, activeRole, runtimeState = null) {
   }
 }
 
-export function renderRun(elements, run, openPath) {
+export function renderRun(elements, run, openFile) {
   const phase = run?.phase ?? "idle";
   elements.phaseBadge.textContent = phase;
   elements.phaseBadge.className = `phase-badge phase-${phase.replace(/_/g, "-")}`;
@@ -305,10 +305,10 @@ export function renderRun(elements, run, openPath) {
   elements.transcriptView.textContent = run?.transcript ?? "";
   elements.handoffView.textContent = run?.latestHandoff || run?.handoff || "";
 
-  renderRecovery(elements, run?.recovery ?? null, openPath);
+  renderRecovery(elements, run?.recovery ?? null, openFile);
   renderStateList(elements, run?.providers ?? []);
   renderBlockers(elements, run?.blockers ?? []);
-  renderFiles(elements, run?.fileDetails ?? run?.files ?? {}, openPath);
+  renderFiles(elements, run?.fileDetails ?? run?.files ?? {}, openFile);
   updateOrgActivity(elements, run?.activeRole ?? null, run?.org ?? null);
 }
 
@@ -535,7 +535,7 @@ function renderStateList(elements, providers) {
   }
 }
 
-function renderRecovery(elements, recovery, openPath) {
+function renderRecovery(elements, recovery, openFile) {
   const state = recovery ?? {
     severity: "neutral",
     title: "No run loaded",
@@ -583,9 +583,11 @@ function renderRecovery(elements, recovery, openPath) {
       button.type = "button";
       button.className = "ghost-button";
       button.textContent = file.label ?? file.key ?? "Open";
-      button.addEventListener("click", () => openPath(file.path));
+      button.disabled = file.available === false || file.exists === false;
+      button.title = file.path ?? "";
+      if (!button.disabled) button.addEventListener("click", () => openFile(file));
       const detail = document.createElement("span");
-      detail.textContent = file.detail ?? file.path;
+      detail.textContent = file.detail ?? file.error ?? file.path;
       row.append(button, detail);
       group.append(row);
     }
@@ -609,7 +611,7 @@ function renderBlockers(elements, blockers) {
   }
 }
 
-function renderFiles(elements, source, openPath) {
+function renderFiles(elements, source, openFile) {
   elements.fileList.replaceChildren();
   const entries = fileActionEntries(source);
 
@@ -632,7 +634,7 @@ function renderFiles(elements, source, openPath) {
     button.textContent = file.label;
     button.disabled = !file.available;
     button.title = file.available ? file.path : `${file.path} - ${file.error ?? "Unavailable"}`;
-    if (file.available) button.addEventListener("click", () => openPath(file.path));
+    if (file.available) button.addEventListener("click", () => openFile(file));
     row.append(button, text, meta);
     elements.fileList.append(row);
   }
@@ -646,9 +648,11 @@ function fileActionEntries(source = {}) {
         key: file.key,
         label: file.label ?? titleCase(file.key),
         path: file.path,
+        sessionId: file.sessionId ?? null,
         available: file.available ?? file.exists !== false,
         detail: file.detail ?? fileDetail(file),
-        error: file.error ?? null
+        error: file.error ?? null,
+        unavailableReason: file.unavailableReason ?? file.error ?? null
       }));
   }
 
@@ -666,9 +670,11 @@ function fileActionEntries(source = {}) {
       key,
       label,
       path,
+      sessionId: null,
       available: true,
       detail: pathLeaf(path),
-      error: null
+      error: null,
+      unavailableReason: null
     }));
 }
 

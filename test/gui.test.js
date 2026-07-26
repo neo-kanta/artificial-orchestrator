@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import { appendTurn, createSession, finalizeSession } from "../src/logger.js";
-import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, useGuiProject } from "../src/gui.js";
+import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, resolveGuiRunFile, useGuiProject } from "../src/gui.js";
 import { runAnalytics } from "../desktop/renderer/view.js";
 
 test("gui state exposes projects and sanitized provider choices", async (t) => {
@@ -242,6 +242,8 @@ test("gui can switch projects and summarize durable run files", async (t) => {
   assert.equal(fileDetails.get("handoff").exists, true);
   assert.equal(fileDetails.get("providerState").exists, true);
   assert.equal(fileDetails.get("events").exists, true);
+  assert.equal(fileDetails.get("transcript").available, true);
+  assert.equal(fileDetails.get("transcript").sessionId, snapshot.id);
   assert.match(fileDetails.get("transcript").modifiedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(typeof fileDetails.get("transcript").sizeBytes, "number");
   assert.equal(snapshot.agentMessages.length, 1);
@@ -266,19 +268,42 @@ test("gui run snapshot marks durable files that have not been written yet", asyn
 
   const workspace = join(root, "workspace");
   await mkdir(workspace);
-  await createSession(workspace, "wait for first provider turn", {
+  const session = await createSession(workspace, "wait for first provider turn", {
     project: { name: "files", path: resolve(workspace), source: "named" }
   });
 
   const snapshot = await guiRunSnapshot(workspace);
+  const transcript = snapshot.fileDetails.find((file) => file.key === "transcript");
   const events = snapshot.fileDetails.find((file) => file.key === "events");
 
   assert.equal(snapshot.phase, "running");
+  assert.equal(transcript.available, true);
+  assert.equal(transcript.path, join(session.dir, "transcript.md"));
+  assert.equal(transcript.sessionId, snapshot.id);
   assert.equal(events.exists, false);
+  assert.equal(events.available, false);
   assert.equal(events.sizeBytes, null);
   assert.equal(events.modifiedAt, null);
   assert.equal(events.error, "File has not been written yet.");
+  assert.match(events.unavailableReason, /Events has not been written yet/);
   assert.equal(snapshot.agentMessages.length, 0);
+
+  const resolved = await resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "transcript" });
+  assert.equal(resolved.path, join(session.dir, "transcript.md"));
+  assert.equal(resolved.available, true);
+
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "events" }),
+    /Events has not been written yet/
+  );
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: snapshot.id, key: "..\\outside" }),
+    /Unknown durable run file/
+  );
+  await assert.rejects(
+    () => resolveGuiRunFile({ workspace, sessionId: "..\\outside", key: "transcript" }),
+    /Run id must be a session directory name/
+  );
 });
 
 test("gui state exposes recent runs and can load a selected session", async (t) => {

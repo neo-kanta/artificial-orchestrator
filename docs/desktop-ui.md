@@ -184,7 +184,9 @@ Important files:
 
 The desktop app disables file buttons for expected files that have not been written yet, such as `events.ndjson` before the first provider turn. When the file exists, the UI shows its last modified time and size when available.
 
-The desktop app opens available files directly. The CLI can inspect the same state:
+Opening a file goes through the app service by workspace, session id, and known durable file key. Missing files, symlinks, non-files, and out-of-workspace session targets are blocked instead of opened.
+
+The CLI can inspect the same state:
 
 ```powershell
 ao status

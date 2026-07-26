@@ -73,6 +73,7 @@ From the desktop app you can:
 - Open `transcript.md`, `status.json`, `handoff.md`, `provider-state.json`, and `org-state.json` when available.
 
 The desktop shell does not display provider secrets or bypass provider authentication, quota, payment, approval, or usage limits. Provider blockers are shown in the monitor and persisted in the same session files as CLI runs.
+Run file buttons are resolved by workspace, session id, and known durable file key before Electron opens them; the renderer does not ask Electron to open arbitrary paths.
 
 ## Projects
 
