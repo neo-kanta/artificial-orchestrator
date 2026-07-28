@@ -123,6 +123,16 @@ Custom agents let you define role labels, provider choices, model overrides, and
 
 Use custom agents when the built-in preset is close but not specific enough.
 
+## Provider Health
+
+The launcher shows Provider Health for the currently selected team before a run starts. It uses the sanitized provider catalog already loaded by the desktop app:
+
+- OpenAI-backed providers show whether `OPENAI_API_KEY` is available to the desktop process.
+- Codex, Claude, and external command providers are marked unchecked until the run starts, because auth, quota, payment, and command availability are owned by the local provider tools.
+- Organization presets and custom agent rosters show which roles use each provider.
+
+Provider Health does not ping remote models or spend quota. Use `ao doctor` or `ao doctor --ping` from a terminal only when an explicit provider check is acceptable.
+
 ## Permissions
 
 The permission selector is one of the most important safety controls.
@@ -211,7 +221,7 @@ The current desktop app is functional, but these are high-value areas to improve
 - Packaging: add a repeatable Windows installer or portable build.
 - Visual verification: add Playwright or Electron screenshot checks for core desktop flows.
 - First-run onboarding: detect missing projects/providers and show a guided setup path.
-- Provider health: make auth, quota, and tool readiness visible before launch.
+- Provider health: add an optional manual refresh that shells out to `ao doctor` without pinging paid models by default.
 - Resume flow: turn `rounds_exhausted` and blocked handoffs into an explicit resume action.
 - Safer file actions: show file existence and last modified time before opening.
 - Streaming: move from polling durable files toward event-based updates where possible.

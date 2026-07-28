@@ -517,6 +517,7 @@ textarea:focus {
 
 .agent-roster-panel,
 .org-map-panel,
+.provider-health-panel,
 .permission-panel {
   display: flex;
   flex-direction: column;
@@ -845,6 +846,88 @@ textarea:focus {
   font-size: 11px;
   font-weight: 650;
   line-height: 1.25;
+}
+
+.provider-health-summary {
+  max-width: 340px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.provider-health-list {
+  display: grid;
+  gap: 8px;
+}
+
+.provider-health-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 54px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.provider-health-row.health-ready {
+  border-color: rgba(63, 139, 100, 0.3);
+  background: rgba(63, 139, 100, 0.07);
+}
+
+.provider-health-row.health-blocked {
+  border-color: rgba(187, 75, 71, 0.42);
+  background: rgba(187, 75, 71, 0.07);
+}
+
+.provider-health-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e7e4da;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.health-ready .provider-health-badge {
+  background: rgba(63, 139, 100, 0.12);
+  color: var(--green);
+}
+
+.health-blocked .provider-health-badge {
+  background: rgba(187, 75, 71, 0.12);
+  color: var(--red);
+}
+
+.provider-health-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.provider-health-copy strong {
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.provider-health-copy small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .permission-choice {
@@ -2389,6 +2472,7 @@ button.chat-tool:hover,
   }
 
   .provider-notice,
+  .provider-health-summary,
   .validation-message {
     max-width: none;
     text-align: left;
