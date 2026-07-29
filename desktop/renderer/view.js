@@ -1,4 +1,4 @@
-import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
+import { launchActionLabel, launchSteps, launchSummary, providerHealth, selectedProviderNotice, validateLaunch } from "./launch-state.js";
 
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
   const project = selectProject(projects, selectedProjectName);
@@ -171,6 +171,7 @@ export function renderLaunchReadiness(elements, input, context = {}, processStat
   renderProcessBanner(elements, processState);
   renderQuickStart(elements, launchSteps(input, context, processState));
   renderSummary(elements, launchSummary(input, context));
+  renderProviderHealth(elements, providerHealth(input, context));
 
   if (isActive) {
     setMessage(elements, "A run is active. Monitor is updating.");
@@ -179,6 +180,54 @@ export function renderLaunchReadiness(elements, input, context = {}, processStat
   }
 
   return validation;
+}
+
+function renderProviderHealth(elements, health) {
+  if (!elements.providerHealthList) return;
+  const state = health ?? providerHealth({}, {});
+  elements.providerHealthStatus.textContent = state.title ?? "Provider health";
+  elements.providerHealthStatus.className = `provider-health-status health-${state.status ?? "idle"}`;
+  elements.providerHealthSummary.textContent = state.summary ?? "";
+  elements.providerHealthList.replaceChildren();
+
+  if (!state.items?.length) {
+    elements.providerHealthList.append(empty("No providers selected"));
+    return;
+  }
+
+  for (const item of state.items) {
+    const row = document.createElement("div");
+    row.className = `provider-health-row health-${item.status ?? "unknown"}`;
+
+    const badge = document.createElement("span");
+    badge.className = "provider-health-badge";
+    badge.textContent = item.statusLabel ?? item.status ?? "unknown";
+
+    const body = document.createElement("span");
+    body.className = "provider-health-copy";
+    const label = document.createElement("strong");
+    label.textContent = item.label ?? item.id ?? "Provider";
+    const detail = document.createElement("small");
+    detail.textContent = providerHealthDetail(item);
+    body.append(label, detail);
+
+    row.append(badge, body);
+    elements.providerHealthList.append(row);
+  }
+}
+
+function providerHealthDetail(item) {
+  const usedBy = (item.usedBy ?? []).filter((label) => label && label !== "Provider pipeline");
+  const kindAndModel = [item.kind, item.model].filter(Boolean).join(" / ");
+  return [
+    kindAndModel,
+    item.configured ? "configured" : null,
+    item.readinessLabel && item.readinessLabel !== item.statusLabel ? item.readinessLabel : null,
+    usedBy.length ? `roles: ${usedBy.join(", ")}` : null,
+    item.message
+  ]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 function renderQuickStart(elements, steps) {

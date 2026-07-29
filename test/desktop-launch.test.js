@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { filterSessions, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
-import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
+import { launchActionLabel, launchSteps, launchSummary, providerHealth, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
 const project = {
@@ -152,6 +152,90 @@ test("desktop launch validation blocks providers with readiness blockers", () =>
 
   assert.equal(org.ok, false);
   assert.deepEqual(org.errors, ["OpenAI is not ready: Set OPENAI_API_KEY before starting OpenAI-backed providers."]);
+});
+
+test("desktop provider health summarizes selected team readiness", () => {
+  const openai = {
+    id: "openai",
+    label: "OpenAI",
+    kind: "openai",
+    readiness: {
+      status: "blocked",
+      label: "Missing OPENAI_API_KEY",
+      message: "Set OPENAI_API_KEY before starting OpenAI-backed providers."
+    }
+  };
+  const codex = {
+    id: "codex",
+    label: "Codex",
+    kind: "codex",
+    model: "gpt-5.4-mini",
+    readiness: {
+      status: "unchecked",
+      label: "Codex CLI auth",
+      message: "Uses the local Codex CLI."
+    }
+  };
+
+  const direct = providerHealth(
+    {
+      providerIds: ["openai", "codex"]
+    },
+    { providers: [openai, codex] }
+  );
+
+  assert.equal(direct.status, "blocked");
+  assert.equal(direct.title, "Provider health blocked");
+  assert.equal(direct.summary, "1 selected provider reports readiness blockers.");
+  assert.deepEqual(
+    direct.items.map((item) => [item.id, item.status, item.statusLabel, item.usedBy]),
+    [
+      ["openai", "blocked", "Blocked", ["Provider pipeline"]],
+      ["codex", "unchecked", "Unchecked", ["Provider pipeline"]]
+    ]
+  );
+
+  const org = providerHealth(
+    {
+      orgName: "software-team"
+    },
+    {
+      providers: [openai, codex],
+      orgs: [
+        {
+          id: "software-team",
+          roles: [
+            { id: "manager", label: "Manager", provider: "openai" },
+            { id: "builder", label: "Builder", provider: "codex" }
+          ]
+        }
+      ]
+    }
+  );
+  assert.deepEqual(
+    org.items.map((item) => [item.id, item.usedBy]),
+    [
+      ["openai", ["Manager"]],
+      ["codex", ["Builder"]]
+    ]
+  );
+
+  const custom = providerHealth(
+    {},
+    {
+      providers: [codex],
+      agentRoles: [
+        { id: "reviewer", label: "Reviewer", providerId: "codex" },
+        { id: "tester", label: "Tester", providerId: "codex" }
+      ]
+    }
+  );
+  assert.equal(custom.status, "unchecked");
+  assert.deepEqual(custom.items.map((item) => [item.id, item.usedBy]), [["codex", ["Reviewer", "Tester"]]]);
+
+  const empty = providerHealth({}, { providers: [codex] });
+  assert.equal(empty.status, "idle");
+  assert.equal(empty.items.length, 0);
 });
 
 test("desktop launch summary supports custom agent rosters", () => {

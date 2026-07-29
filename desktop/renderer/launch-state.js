@@ -82,6 +82,47 @@ export function launchSummary(input = {}, context = {}) {
   ];
 }
 
+export function providerHealth(input = {}, context = {}) {
+  const providerIds = selectedTeamProviderIds(input, context);
+  if (providerIds.length === 0) {
+    return {
+      status: "idle",
+      title: "No provider selected",
+      summary: "Choose providers, custom agents, or an organization preset.",
+      items: []
+    };
+  }
+
+  const providerById = new Map((context.providers ?? []).map((provider) => [provider.id, provider]));
+  const usageById = selectedTeamProviderUsage(input, context);
+  const items = providerIds.map((id) => {
+    const provider = providerById.get(id);
+    const readiness = provider?.readiness ?? {};
+    const status = normalizeReadinessStatus(readiness.status);
+
+    return {
+      id,
+      label: provider?.label ?? id,
+      kind: provider?.kind ?? "provider",
+      model: provider?.model ?? null,
+      configured: Boolean(provider?.configured),
+      status,
+      statusLabel: readinessStatusLabel(status),
+      readinessLabel: readiness.label ?? readinessStatusLabel(status),
+      message: readiness.message ?? providerHealthMessage(status),
+      usedBy: usageById.get(id) ?? []
+    };
+  });
+  const status = overallProviderHealthStatus(items);
+
+  return {
+    status,
+    title: providerHealthTitle(status),
+    summary: providerHealthSummary(status, items),
+    items
+  };
+}
+
 export function selectedProviderNotice(input = {}) {
   if (input.orgName) return "Organization presets control provider order. Provider choices are locked for this run.";
   return "Select providers in the order they should hand off work.";
@@ -178,6 +219,33 @@ function providerReadinessErrors(input, context) {
   return errors;
 }
 
+function selectedTeamProviderUsage(input, context) {
+  const usage = new Map();
+  const add = (providerId, label) => {
+    const id = String(providerId ?? "").trim();
+    if (!id) return;
+    const values = usage.get(id) ?? [];
+    const text = String(label ?? "").trim();
+    if (text && !values.includes(text)) values.push(text);
+    usage.set(id, values);
+  };
+
+  const agentRoles = normalizeAgentRoles(context.agentRoles);
+  if (agentRoles.length > 0) {
+    for (const role of agentRoles) add(role.providerId, role.label || role.id);
+    return usage;
+  }
+
+  if (input.orgName) {
+    const org = findById(context.orgs, input.orgName);
+    for (const role of org?.roles ?? []) add(role.provider ?? role.providerId, role.label || role.id);
+    return usage;
+  }
+
+  for (const id of normalizeList(input.providerIds)) add(id, "Provider pipeline");
+  return usage;
+}
+
 function selectedTeamProviderIds(input, context) {
   const agentRoles = normalizeAgentRoles(context.agentRoles);
   if (agentRoles.length > 0) return uniqueList(agentRoles.map((role) => role.providerId));
@@ -188,6 +256,50 @@ function selectedTeamProviderIds(input, context) {
   }
 
   return uniqueList(normalizeList(input.providerIds));
+}
+
+function normalizeReadinessStatus(status) {
+  const value = String(status ?? "unknown").toLowerCase().replace(/_/g, "-");
+  if (["ready", "blocked", "unchecked"].includes(value)) return value;
+  return "unknown";
+}
+
+function readinessStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "blocked") return "Blocked";
+  if (status === "unchecked") return "Unchecked";
+  return "Unknown";
+}
+
+function providerHealthMessage(status) {
+  if (status === "ready") return "Deterministic preflight checks passed.";
+  if (status === "blocked") return "Resolve this provider blocker before starting the run.";
+  if (status === "unchecked") return "Readiness is verified when the provider starts.";
+  return "Provider metadata is unavailable in the desktop catalog.";
+}
+
+function overallProviderHealthStatus(items) {
+  if (items.some((item) => item.status === "blocked")) return "blocked";
+  if (items.some((item) => item.status === "unchecked" || item.status === "unknown")) return "unchecked";
+  return "ready";
+}
+
+function providerHealthTitle(status) {
+  if (status === "ready") return "Provider health ready";
+  if (status === "blocked") return "Provider health blocked";
+  if (status === "unchecked") return "Provider health unchecked";
+  return "Provider health";
+}
+
+function providerHealthSummary(status, items) {
+  if (status === "ready") return "All selected providers pass deterministic preflight checks.";
+  if (status === "blocked") {
+    const count = items.filter((item) => item.status === "blocked").length;
+    return `${count} selected ${count === 1 ? "provider reports" : "providers report"} readiness blockers.`;
+  }
+
+  const count = items.filter((item) => item.status === "unchecked" || item.status === "unknown").length;
+  return `${count} selected ${count === 1 ? "provider needs" : "providers need"} runtime verification.`;
 }
 
 function uniqueList(values) {
