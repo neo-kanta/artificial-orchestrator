@@ -66,6 +66,8 @@ export function sessionTitle(run) {
 export function sessionRunOverview(run) {
   const phase = normalizeStatus(run?.phase ?? "idle");
   const blockers = Array.isArray(run?.blockers) ? run.blockers.map((blocker) => compactLine(blocker, 120)).filter(Boolean) : [];
+  const files = sessionFileActions(run?.fileDetails ?? run?.files);
+  const availableFiles = files.filter((file) => file.available).length;
   return {
     phase,
     phaseClass: `phase-${String(run?.phase ?? "idle").replace(/_/g, "-")}`,
@@ -74,11 +76,30 @@ export function sessionRunOverview(run) {
     team: sessionTeamLabel(run),
     blockers,
     latestHandoff: compactLine(run?.latestHandoff || run?.handoff || "", 260),
-    files: sessionFileActions(run?.files)
+    files,
+    fileSummary: files.length ? `${availableFiles} of ${files.length} available` : "No durable files"
   };
 }
 
-export function sessionFileActions(files = {}) {
+export function sessionFileActions(source = {}) {
+  if (Array.isArray(source)) {
+    return source
+      .filter((file) => file?.path)
+      .map((file) => ({
+        key: file.key,
+        label: file.label ?? titleCase(file.key),
+        path: file.path,
+        sessionId: file.sessionId ?? null,
+        available: file.available ?? file.exists !== false,
+        detail: file.detail ?? fileDetail(file),
+        modifiedAt: file.modifiedAt ?? null,
+        sizeBytes: Number.isFinite(Number(file.sizeBytes)) ? Number(file.sizeBytes) : null,
+        error: file.error ?? null,
+        unavailableReason: file.unavailableReason ?? file.error ?? null
+      }));
+  }
+
+  const files = source ?? {};
   return [
     ["transcript", "Transcript", files.transcript],
     ["status", "Status", files.status],
@@ -92,7 +113,13 @@ export function sessionFileActions(files = {}) {
       key,
       label,
       path,
-      detail: pathLeaf(path)
+      sessionId: null,
+      available: true,
+      detail: pathLeaf(path),
+      modifiedAt: null,
+      sizeBytes: null,
+      error: null,
+      unavailableReason: null
     }));
 }
 
@@ -167,7 +194,7 @@ function sessionOverviewNode(overview, onOpenPath) {
   facts.append(
     factNode("Project", overview.project, overview.projectPath),
     factNode("Team", overview.team),
-    factNode("Files", overview.files.length ? `${overview.files.length} durable files` : "No durable files")
+    factNode("Files", overview.fileSummary)
   );
 
   panel.append(head, facts);
@@ -203,10 +230,15 @@ function sessionOverviewNode(overview, onOpenPath) {
     for (const file of overview.files) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "session-file-button";
-      button.textContent = file.label;
-      button.title = file.path;
-      button.addEventListener("click", () => onOpenPath(file.path));
+      button.className = `session-file-button ${file.available ? "" : "missing"}`;
+      button.disabled = !file.available;
+      button.title = file.available ? file.path : `${file.path} - ${file.error ?? "Unavailable"}`;
+      const label = document.createElement("span");
+      label.textContent = file.label;
+      const detail = document.createElement("small");
+      detail.textContent = file.detail;
+      button.append(label, detail);
+      if (file.available) button.addEventListener("click", () => onOpenPath(file));
       fileBar.append(button);
     }
     panel.append(fileBar);
@@ -335,6 +367,12 @@ function pathLeaf(path) {
   return parts.at(-1) ?? String(path ?? "");
 }
 
+function fileDetail(file) {
+  if (file.exists === false) return file.error ?? "Missing";
+  const parts = [file.modifiedAt ? shortDateTime(file.modifiedAt) : null, formatBytes(file.sizeBytes)].filter(Boolean);
+  return parts.join(" | ") || pathLeaf(file.path);
+}
+
 function statusLeft(run, processState) {
   if (processState.activeRun) return "Gateway running";
   return run ? `Gateway ${normalizeStatus(run.phase)}` : "Gateway ready";
@@ -370,6 +408,12 @@ function shortDate(value) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function shortDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value ?? "");
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function formatDuration(durationMs) {
   const seconds = Math.max(0, Math.round(Number(durationMs) / 1000));
   if (seconds < 60) return `${seconds}s`;
@@ -378,6 +422,16 @@ function formatDuration(durationMs) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+function formatBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
 function compact(value, maxLength) {

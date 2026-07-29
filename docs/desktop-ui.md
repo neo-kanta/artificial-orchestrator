@@ -32,7 +32,7 @@ Use it to:
 - Search and load recent sessions.
 - Enter a goal in the composer and start a run.
 - Watch agent messages as they appear.
-- See the selected run's phase, project, team, blockers, latest handoff, and durable file buttons.
+- See the selected run's phase, project, team, blockers, latest handoff, and durable file buttons with availability details.
 
 The session page is intentionally compact. When you need to change projects, providers, permissions, or the full agent roster, switch to the Hierarchy page.
 
@@ -182,7 +182,11 @@ Important files:
 - `provider-state.json`: latest per-provider state, limits, usage, and handoffs.
 - `org-state.json`: role statuses and blockers for organization runs.
 
-The desktop app opens these files directly when they exist. The CLI can inspect the same state:
+The desktop app disables file buttons for expected files that have not been written yet, such as `events.ndjson` before the first provider turn. When the file exists, the UI shows its last modified time and size when available.
+
+Opening a file goes through the app service by workspace, session id, and known durable file key. Missing files, symlinks, non-files, and out-of-workspace session targets are blocked instead of opened.
+
+The CLI can inspect the same state:
 
 ```powershell
 ao status

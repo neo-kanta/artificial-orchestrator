@@ -134,7 +134,7 @@ async function refreshState() {
   seedAgentRolesFromSelection(agentRoles.length === 0);
   renderAgentRoster();
   renderCurrentOrgMap();
-  renderRun(elements, currentState.run, openPath);
+  renderRun(elements, currentState.run, openRunFile);
   selectedAgentId = renderAgentChat(elements, currentState.run, selectedAgentId, selectAgentChat);
   renderRunHistory(elements, currentState.runHistory ?? [], selectedSessionId ?? currentState.run?.id ?? null, selectHistoryRun);
   renderRunVisualization(
@@ -167,7 +167,7 @@ async function refreshLiveState() {
     const snapshot = await api.snapshot({ workspace: currentWorkspace, sessionId: selectedSessionId });
     if (snapshot) {
       if (currentState) currentState.run = snapshot;
-      renderRun(elements, snapshot, openPath);
+      renderRun(elements, snapshot, openRunFile);
       selectedAgentId = renderAgentChat(elements, snapshot, selectedAgentId, selectAgentChat);
     }
     const runHistory = await api.history({ workspace: currentWorkspace });
@@ -287,7 +287,7 @@ async function selectHistoryRun(run) {
     if (currentState) currentState.run = snapshot;
     draftSession = false;
     chatNotice = null;
-    renderRun(elements, snapshot, openPath);
+    renderRun(elements, snapshot, openRunFile);
     selectedAgentId = renderAgentChat(elements, snapshot, null, selectAgentChat);
     renderRunHistory(elements, currentState?.runHistory ?? [], snapshot.id, selectHistoryRun);
     renderRunVisualization(elements, snapshot, currentState?.runHistory ?? [], snapshot.id, selectHistoryRun);
@@ -298,8 +298,20 @@ async function selectHistoryRun(run) {
   }
 }
 
-async function openPath(path) {
-  await api.openPath({ path });
+async function openRunFile(file) {
+  try {
+    const key = file?.key;
+    const workspace = file?.workspace ?? currentWorkspace ?? activeProject()?.path;
+    const sessionId = file?.sessionId ?? selectedSessionId ?? currentState?.run?.id;
+    if (!key) throw new Error("Choose a durable run file to open.");
+    await api.openRunFile({ workspace, sessionId, key });
+    setMessage(elements, "");
+  } catch (error) {
+    const message = error?.message ?? String(error);
+    chatNotice = { message, error: true };
+    setMessage(elements, message, true);
+    renderCurrentSessionView();
+  }
 }
 
 function selectAgentChat(agentId) {
@@ -362,7 +374,7 @@ function renderCurrentSessionView() {
     },
     {
       onSelectRun: selectHistoryRun,
-      onOpenPath: openPath
+      onOpenPath: openRunFile
     }
   );
 }
