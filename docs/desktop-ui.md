@@ -36,6 +36,12 @@ Use it to:
 
 The session page is intentionally compact. When you need to change projects, providers, permissions, or the full agent roster, switch to the Hierarchy page.
 
+### Follow-Up Drafts
+
+Blocked and round-limited sessions show a `Use handoff` action in the session overview when a latest handoff or blocker is available. The action creates a new composer draft with the previous goal, session id, and public handoff text so you can review or edit the continuation before starting another run.
+
+The draft does not read provider secrets or bypass provider limits. It uses the same visible durable run state that appears in the session overview and Recovery Center.
+
 ### Hierarchy Page
 
 The hierarchy page is the full operator view. It contains:

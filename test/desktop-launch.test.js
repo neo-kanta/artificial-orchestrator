@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterSessions, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
+import { filterSessions, resumeDraftForRun, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
@@ -313,6 +313,38 @@ test("desktop session overview summarizes run state and durable files", () => {
   );
 });
 
+test("desktop session overview creates follow-up drafts for blocked and round-limited runs", () => {
+  const blocked = resumeDraftForRun({
+    id: "20260729T100000Z",
+    phase: "blocked",
+    goal: "Fix the desktop provider setup",
+    latestHandoff: "Set OPENAI_API_KEY, then rerun the provider health check.",
+    blockers: ["Missing OPENAI_API_KEY"]
+  });
+
+  assert.equal(blocked.label, "Use handoff");
+  assert.equal(blocked.detail, "Blocker handoff ready.");
+  assert.match(blocked.goal, /Continue the previous blocked Artificial Orchestrator run/);
+  assert.match(blocked.goal, /Previous goal: Fix the desktop provider setup/);
+  assert.match(blocked.goal, /Session: 20260729T100000Z/);
+  assert.match(blocked.goal, /Latest handoff: Set OPENAI_API_KEY/);
+
+  const roundLimited = sessionRunOverview({
+    id: "20260729T110000Z",
+    phase: "rounds_exhausted",
+    goal: "Finish renderer tests",
+    blockers: ["round limit reached"]
+  });
+
+  assert.equal(roundLimited.resume.label, "Use handoff");
+  assert.equal(roundLimited.resume.detail, "Round-limit handoff ready.");
+  assert.match(roundLimited.resume.goal, /Continue the previous round-limited Artificial Orchestrator run/);
+  assert.match(roundLimited.resume.goal, /Resolve blocker: round limit reached/);
+
+  assert.equal(resumeDraftForRun({ phase: "done", latestHandoff: "ship it" }), null);
+  assert.equal(resumeDraftForRun({ phase: "running", latestHandoff: "wait" }), null);
+  assert.equal(resumeDraftForRun({ phase: "blocked" }), null);
+});
 test("desktop session file actions show availability and file metadata", () => {
   const actions = sessionFileActions([
     {
