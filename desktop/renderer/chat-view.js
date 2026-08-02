@@ -28,9 +28,10 @@ export function renderSessionView(elements, context, handlers = {}) {
   const selectedRun = draftMode ? null : run;
   const onSelectRun = handlers.onSelectRun ?? (() => {});
   const onOpenPath = handlers.onOpenPath ?? (() => {});
+  const onResumeRun = handlers.onResumeRun ?? (() => {});
 
   renderSessionList(elements, visibleRuns, selectedRunId, onSelectRun);
-  renderThread(elements, selectedRun, draftMode, onOpenPath);
+  renderThread(elements, selectedRun, draftMode, onOpenPath, onResumeRun);
   renderComposer(elements, { activeProject, processState, launchInput, notice });
 
   elements.sessionCount.textContent = String(runHistory.length);
@@ -76,8 +77,37 @@ export function sessionRunOverview(run) {
     team: sessionTeamLabel(run),
     blockers,
     latestHandoff: compactLine(run?.latestHandoff || run?.handoff || "", 260),
+    resume: resumeDraftForRun(run),
     files,
     fileSummary: files.length ? `${availableFiles} of ${files.length} available` : "No durable files"
+  };
+}
+
+export function resumeDraftForRun(run) {
+  const phase = runPhase(run?.phase);
+  if (!["blocked", "rounds_exhausted"].includes(phase)) return null;
+
+  const handoff = compactLine(run?.latestHandoff || run?.handoff || "", 900);
+  const blocker = compactLine(Array.isArray(run?.blockers) ? run.blockers.find(Boolean) : "", 420);
+  const source = handoff || (blocker ? `Resolve blocker: ${blocker}` : "");
+  if (!source) return null;
+
+  const previousGoal = compactLine(run?.goal || "(no previous goal recorded)", 420);
+  const sessionId = compactLine(run?.id || pathLeaf(run?.session) || "unknown", 120);
+  const phaseLabel = phase === "rounds_exhausted" ? "round-limited" : "blocked";
+  return {
+    label: "Use handoff",
+    detail: phase === "rounds_exhausted" ? "Round-limit handoff ready." : "Blocker handoff ready.",
+    goal: [
+      `Continue the previous ${phaseLabel} Artificial Orchestrator run.`,
+      "",
+      `Previous goal: ${previousGoal}`,
+      `Session: ${sessionId}`,
+      "",
+      `Latest handoff: ${source}`,
+      "",
+      "Inspect the durable run files first, then continue with the safest next action."
+    ].join("\n")
   };
 }
 
@@ -153,7 +183,7 @@ function renderSessionList(elements, runs, selectedRunId, onSelectRun) {
   }
 }
 
-function renderThread(elements, run, draftMode, onOpenPath) {
+function renderThread(elements, run, draftMode, onOpenPath, onResumeRun) {
   elements.chatThread.replaceChildren();
 
   if (draftMode || !run) {
@@ -162,7 +192,7 @@ function renderThread(elements, run, draftMode, onOpenPath) {
   }
 
   elements.chatThread.append(messageCard("user", "Goal", run.goal || "(no goal recorded)"));
-  elements.chatThread.append(sessionOverviewNode(sessionRunOverview(run), onOpenPath));
+  elements.chatThread.append(sessionOverviewNode(sessionRunOverview(run), onOpenPath, onResumeRun));
 
   const messages = Array.isArray(run.agentMessages) ? run.agentMessages : [];
   if (messages.length === 0) {
@@ -175,7 +205,7 @@ function renderThread(elements, run, draftMode, onOpenPath) {
   }
 }
 
-function sessionOverviewNode(overview, onOpenPath) {
+function sessionOverviewNode(overview, onOpenPath, onResumeRun) {
   const panel = document.createElement("section");
   panel.className = `session-run-overview ${overview.phaseClass}`;
   panel.setAttribute("aria-label", "Run status summary");
@@ -222,6 +252,20 @@ function sessionOverviewNode(overview, onOpenPath) {
     text.textContent = overview.latestHandoff;
     handoff.append(label, text);
     panel.append(handoff);
+  }
+
+  if (overview.resume) {
+    const resume = document.createElement("div");
+    resume.className = "session-resume-actions";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "session-resume-button";
+    button.textContent = overview.resume.label;
+    button.addEventListener("click", () => onResumeRun(overview.resume));
+    const detail = document.createElement("small");
+    detail.textContent = overview.resume.detail;
+    resume.append(button, detail);
+    panel.append(resume);
   }
 
   if (overview.files.length > 0) {
@@ -393,6 +437,13 @@ function emptyNote(text) {
 
 function normalizeStatus(status) {
   return String(status ?? "idle").replace(/_/g, " ");
+}
+
+function runPhase(phase) {
+  return String(phase ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
 }
 
 function titleCase(value) {

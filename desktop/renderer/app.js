@@ -314,6 +314,23 @@ async function openRunFile(file) {
   }
 }
 
+function resumeRunDraft(draft) {
+  const goal = String(draft?.goal ?? "").trim();
+  if (!goal) return;
+
+  selectedSessionId = null;
+  selectedAgentId = null;
+  draftSession = true;
+  chatNotice = { message: "Follow-up draft created from the latest handoff.", error: false };
+  elements.chatGoalInput.value = goal;
+  elements.goalInput.value = goal;
+  resizeComposer(elements.chatGoalInput);
+  setViewMode("sessions");
+  renderLaunchState();
+  renderCurrentSessionView();
+  elements.chatGoalInput.focus();
+}
+
 function selectAgentChat(agentId) {
   selectedAgentId = agentId;
   selectedAgentId = renderAgentChat(elements, currentState?.run ?? null, selectedAgentId, selectAgentChat);
@@ -374,7 +391,8 @@ function renderCurrentSessionView() {
     },
     {
       onSelectRun: selectHistoryRun,
-      onOpenPath: openRunFile
+      onOpenPath: openRunFile,
+      onResumeRun: resumeRunDraft
     }
   );
 }
