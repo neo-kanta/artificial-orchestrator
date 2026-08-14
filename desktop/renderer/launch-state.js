@@ -169,25 +169,67 @@ function providerReadinessErrors(input, context) {
   const providerById = new Map((context.providers ?? []).map((provider) => [provider.id, provider]));
   const errors = [];
 
-  for (const id of selectedTeamProviderIds(input, context)) {
-    const provider = providerById.get(id);
+  for (const entry of selectedTeamProviderEntries(input, context, providerById)) {
+    const provider = providerById.get(entry.id);
     if (provider?.readiness?.status !== "blocked") continue;
-    errors.push(`${provider.label ?? id} is not ready: ${provider.readiness.message ?? provider.readiness.label}`);
+    if (hasUsableFallback(entry, providerById)) continue;
+    errors.push(`${provider.label ?? entry.id} is not ready: ${provider.readiness.message ?? provider.readiness.label}`);
   }
 
   return errors;
 }
 
-function selectedTeamProviderIds(input, context) {
+function selectedTeamProviderEntries(input, context, providerById) {
   const agentRoles = normalizeAgentRoles(context.agentRoles);
-  if (agentRoles.length > 0) return uniqueList(agentRoles.map((role) => role.providerId));
+  if (agentRoles.length > 0) {
+    return uniqueProviderEntries(
+      agentRoles.map((role) => providerEntry(role.providerId, providerById.get(role.providerId)?.fallbackProviderIds))
+    );
+  }
 
   if (input.orgName) {
     const org = findById(context.orgs, input.orgName);
-    return uniqueList((org?.roles ?? []).map((role) => role.provider ?? role.providerId));
+    return uniqueProviderEntries(
+      (org?.roles ?? []).map((role) => providerEntry(role.provider ?? role.providerId, role.fallbackProviderIds))
+    );
   }
 
-  return uniqueList(normalizeList(input.providerIds));
+  return uniqueProviderEntries(
+    normalizeList(input.providerIds).map((id) => providerEntry(id, providerById.get(id)?.fallbackProviderIds))
+  );
+}
+
+function providerEntry(id, fallbackProviderIds = []) {
+  return {
+    id: String(id ?? "").trim(),
+    fallbackProviderIds: uniqueList(fallbackProviderIds)
+  };
+}
+
+function uniqueProviderEntries(entries) {
+  const byId = new Map();
+  for (const entry of entries) {
+    if (!entry.id) continue;
+    const existing = byId.get(entry.id);
+    byId.set(entry.id, {
+      id: entry.id,
+      fallbackProviderIds: uniqueList([...(existing?.fallbackProviderIds ?? []), ...(entry.fallbackProviderIds ?? [])])
+    });
+  }
+  return [...byId.values()];
+}
+
+function hasUsableFallback(entry, providerById, seen = new Set()) {
+  for (const id of entry.fallbackProviderIds ?? []) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const provider = providerById.get(id);
+    if (!provider) continue;
+    if (provider.readiness?.status !== "blocked") return true;
+    if (hasUsableFallback(providerEntry(id, provider.fallbackProviderIds), providerById, seen)) return true;
+  }
+  return false;
 }
 
 function uniqueList(values) {
