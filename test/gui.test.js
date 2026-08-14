@@ -5,9 +5,19 @@ import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import { appendTurn, createSession, finalizeSession } from "../src/logger.js";
-import { addGuiProject, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, resolveGuiRunFile, useGuiProject } from "../src/gui.js";
+import { addGuiProject, assertGuiRunReady, createGuiRunOptions, guiRunHistory, guiRunSnapshot, guiState, providerReadiness, resolveGuiRunFile, useGuiProject } from "../src/gui.js";
 import { runAnalytics } from "../desktop/renderer/view.js";
 
+const readyRunCli = async (name, args, options) => ({
+  ok: true,
+  code: 0,
+  stdout: `${name} 1.0.0`,
+  stderr: "",
+  timedOut: false,
+  durationMs: 1,
+  args,
+  timeoutMs: options?.timeoutMs ?? null
+});
 test("gui state exposes projects and sanitized provider choices", async (t) => {
   const originalOpenAiKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -49,7 +59,7 @@ test("gui state exposes projects and sanitized provider choices", async (t) => {
   const registryPath = join(root, "projects.json");
   await addGuiProject({ name: "demo", path: workspace, registryPath });
 
-  const state = await guiState({ registryPath });
+  const state = await guiState({ registryPath, runCli: readyRunCli });
   assert.equal(state.activeProject.name, "demo");
   assert.equal(state.workspace, resolve(workspace));
   const softwareTeam = state.orgs.find((org) => org.id === "software-team");
@@ -90,6 +100,73 @@ test("gui state exposes projects and sanitized provider choices", async (t) => {
   assert.doesNotMatch(JSON.stringify(state.providers), /do-not-render|secret-tool/);
 });
 
+test("gui provider readiness probes Codex and Claude CLI availability without provider calls", async () => {
+  const calls = [];
+  const runCli = async (name, args, options) => {
+    calls.push({ name, args, timeoutMs: options.timeoutMs });
+    return {
+      ok: name === "codex",
+      code: name === "codex" ? 0 : 127,
+      stdout: name === "codex" ? "codex 1.2.3" : "",
+      stderr: name === "claude" ? "command not found" : "",
+      timedOut: false,
+      durationMs: 1
+    };
+  };
+
+  const codex = await providerReadiness({ id: "codex", kind: "codex", label: "Codex" }, { runCli, readinessTimeoutMs: 25 });
+  const claude = await providerReadiness({ id: "claude", kind: "claude", label: "Claude" }, { runCli, readinessTimeoutMs: 25 });
+
+  assert.equal(codex.status, "ready");
+  assert.equal(codex.label, "Codex CLI available");
+  assert.equal(codex.detail, "codex 1.2.3");
+  assert.equal(claude.status, "blocked");
+  assert.equal(claude.label, "Claude CLI unavailable");
+  assert.deepEqual(calls.map((call) => [call.name, call.args, call.timeoutMs]), [
+    ["codex", ["--version"], 25],
+    ["claude", ["--version"], 25]
+  ]);
+});
+
+test("gui launch readiness blocks unavailable primaries unless a fallback can run", async (t) => {
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  t.after(() => {
+    if (originalOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenAiKey;
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      assertGuiRunReady({
+        providers: [{ id: "openai", label: "OpenAI", kind: "openai" }]
+      }),
+    /OpenAI is not ready: Set OPENAI_API_KEY/
+  );
+
+  const fallback = await assertGuiRunReady({
+    providers: [
+      {
+        id: "openai",
+        label: "OpenAI",
+        kind: "openai",
+        fallbackProviders: [{ id: "local-advisor", label: "Local Advisor", kind: "command" }]
+      }
+    ]
+  });
+
+  assert.equal(fallback.ok, true);
+  assert.deepEqual(
+    fallback.checks.map((check) => [check.provider, check.fallbackFor, check.readiness.status]),
+    [
+      ["openai", null, "blocked"],
+      ["local-advisor", "openai", "unchecked"]
+    ]
+  );
+});
 test("gui run options validate launch input and reuse provider resolution", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "ao gui-run-"));
   t.after(async () => rm(root, { recursive: true, force: true }));
@@ -386,7 +463,7 @@ test("gui state exposes recent runs and can load a selected session", async (t) 
   assert.equal(Object.hasOwn(history[0], "latestHandoff"), false);
   assert.doesNotMatch(JSON.stringify(history), /private transcript detail|private handoff detail/);
 
-  const state = await guiState({ registryPath, historyLimit: 2 });
+  const state = await guiState({ registryPath, historyLimit: 2, runCli: readyRunCli });
   assert.equal(state.run.id, history[0].id);
   assert.deepEqual(
     state.runHistory.map((run) => run.id),

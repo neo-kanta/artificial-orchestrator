@@ -11,11 +11,13 @@ import { recoveryCenterForRun } from "../domain/recovery.js";
 import { prepareRunOptions } from "./run-options.js";
 import { assertDirectory, assertWorkspaceDirectory, readTail } from "../shared/workspace.js";
 import { compactText } from "../shared/text.js";
+import { runCli } from "../platform/process.js";
 
 const DEFAULT_TRANSCRIPT_CHARS = 30000;
 const DEFAULT_AGENT_MESSAGE_CHARS = 6000;
 const DEFAULT_AGENT_HANDOFF_CHARS = 1600;
 const DEFAULT_HISTORY_LIMIT = 8;
+const DEFAULT_READINESS_TIMEOUT_MS = 4000;
 const RUN_FILE_KEYS = new Map(
   [
     ["transcript", "transcript.md"],
@@ -36,13 +38,17 @@ export async function guiState(options = {}) {
   const activeProject = await currentProject({ registryPath: options.registryPath });
   const workspace = resolve(String(options.workspace ?? activeProject?.path ?? options.cwd ?? process.cwd()));
   const config = await loadConfig({ workspace, configPath: options.configPath });
-  const [run, runHistory] = await Promise.all([optionalLatestSnapshot(workspace, options), optionalRunHistory(workspace, options)]);
+  const [run, runHistory, providers] = await Promise.all([
+    optionalLatestSnapshot(workspace, options),
+    optionalRunHistory(workspace, options),
+    publicProviders(providerRegistry(config), config, options)
+  ]);
 
   return {
     activeProject,
     projects,
     workspace,
-    providers: publicProviders(providerRegistry(config), config),
+    providers,
     orgs: publicOrgs(listOrgs(config)),
     run,
     runHistory
@@ -66,10 +72,33 @@ export async function createGuiRunOptions(input = {}) {
 
 export async function startGuiRun(input = {}, deps = {}) {
   const options = await createGuiRunOptions(input);
+  await assertGuiRunReady(options, deps);
   return runDuet({
     ...options,
     callProvider: deps.callProvider
   });
+}
+
+export async function assertGuiRunReady(runOptions = {}, options = {}) {
+  const errors = [];
+  const checks = [];
+
+  for (const provider of runProvidersForReadiness(runOptions)) {
+    const readiness = await providerReadiness(provider, options);
+    checks.push(publicReadinessCheck(provider, readiness));
+    if (readiness.status !== "blocked") continue;
+    if (await hasUsableFallback(provider, options, checks)) continue;
+    errors.push(readinessError(provider, readiness));
+  }
+
+  if (errors.length > 0) {
+    const error = new Error(errors[0]);
+    error.errors = errors;
+    error.checks = checks;
+    throw error;
+  }
+
+  return { ok: true, checks };
 }
 
 export async function guiRunHistory(workspace, options = {}) {
@@ -293,8 +322,8 @@ function assertContainedPath(path, root, label) {
   throw new Error(`${label} is outside the selected workspace.`);
 }
 
-function publicProviders(registry, config) {
-  return Object.values(registry)
+async function publicProviders(registry, config, options = {}) {
+  const providers = Object.values(registry)
     .map((provider) => ({
       id: provider.id,
       label: provider.label ?? provider.id,
@@ -302,9 +331,59 @@ function publicProviders(registry, config) {
       role: provider.role ?? "provider",
       model: provider.model ?? defaultModelForKind(provider.kind),
       configured: Boolean(config?.providers?.[provider.id]),
-      readiness: providerReadiness(provider)
+      fallbackProviderIds: publicFallbackProviderIds(provider)
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
+
+  const readiness = await Promise.all(providers.map((provider) => providerReadiness(provider, options)));
+  return providers.map((provider, index) => ({
+    ...provider,
+    readiness: readiness[index]
+  }));
+}
+
+function publicFallbackProviderIds(provider) {
+  const refs = provider?.fallbackProviders ?? provider?.fallback;
+  if (!refs) return [];
+  if (Array.isArray(refs)) return refs.map((item) => String(item).trim()).filter(Boolean);
+  return String(refs)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function runProvidersForReadiness(runOptions) {
+  if (runOptions?.org) return runOptions.org.roles ?? [];
+  return runOptions?.providers ?? [];
+}
+
+async function hasUsableFallback(provider, options, checks, seen = new Set()) {
+  for (const fallback of provider?.fallbackProviders ?? []) {
+    const key = fallback.providerId ?? fallback.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const readiness = await providerReadiness(fallback, options);
+    checks.push(publicReadinessCheck(fallback, readiness, provider));
+    if (readiness.status !== "blocked") return true;
+    if (await hasUsableFallback(fallback, options, checks, seen)) return true;
+  }
+  return false;
+}
+
+function publicReadinessCheck(provider, readiness, fallbackFor = null) {
+  return {
+    provider: provider.providerId ?? provider.id ?? null,
+    role: provider.orgRole ?? provider.role ?? null,
+    label: provider.label ?? provider.id ?? provider.providerId ?? "Provider",
+    fallbackFor: fallbackFor ? fallbackFor.providerId ?? fallbackFor.id ?? null : null,
+    readiness
+  };
+}
+
+function readinessError(provider, readiness) {
+  const label = provider.label ?? provider.id ?? provider.providerId ?? "Provider";
+  return `${label} is not ready: ${readiness.message ?? readiness.label}`;
 }
 
 function defaultModelForKind(kind) {
@@ -313,7 +392,7 @@ function defaultModelForKind(kind) {
   return null;
 }
 
-function providerReadiness(provider) {
+export async function providerReadiness(provider, options = {}) {
   if (provider.kind === "openai") {
     const hasKey = Boolean(process.env.OPENAI_API_KEY);
     return {
@@ -324,19 +403,21 @@ function providerReadiness(provider) {
   }
 
   if (provider.kind === "codex") {
-    return {
-      status: "unchecked",
-      label: "Codex CLI auth",
-      message: "Uses the local Codex CLI, auth, quota, and sandbox settings."
-    };
+    return commandProviderReadiness({
+      name: "codex",
+      label: "Codex CLI",
+      readyMessage: "Codex CLI is installed. Auth, quota, and sandbox limits are still checked when a run starts.",
+      blockedMessage: "Install the Codex CLI or choose another provider before starting this run."
+    }, options);
   }
 
   if (provider.kind === "claude") {
-    return {
-      status: "unchecked",
-      label: "Claude CLI auth",
-      message: "Uses the local Claude CLI, auth, quota, and usage limits."
-    };
+    return commandProviderReadiness({
+      name: "claude",
+      label: "Claude CLI",
+      readyMessage: "Claude CLI is installed. Auth, quota, and usage limits are still checked when a run starts.",
+      blockedMessage: "Install the Claude CLI or choose another provider before starting this run."
+    }, options);
   }
 
   return {
@@ -344,6 +425,46 @@ function providerReadiness(provider) {
     label: "External command",
     message: "Readiness is checked when the configured command starts."
   };
+}
+
+async function commandProviderReadiness(command, options = {}) {
+  const runner = options.runCli ?? runCli;
+  const checkedAt = new Date().toISOString();
+  const result = await runner(command.name, ["--version"], {
+    timeoutMs: Number(options.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS)
+  });
+
+  if (result.ok) {
+    return {
+      status: "ready",
+      label: `${command.label} available`,
+      message: command.readyMessage,
+      checkedAt,
+      detail: firstLine(result.stdout || result.stderr)
+    };
+  }
+
+  if (result.timedOut) {
+    return {
+      status: "blocked",
+      label: `${command.label} check timed out`,
+      message: `${command.label} did not answer its version check quickly enough. Check the local install or choose another provider.`,
+      checkedAt,
+      detail: "Version check timed out."
+    };
+  }
+
+  return {
+    status: "blocked",
+    label: `${command.label} unavailable`,
+    message: command.blockedMessage,
+    checkedAt,
+    detail: firstLine(result.stderr || result.stdout)
+  };
+}
+
+function firstLine(text) {
+  return (text || "").trim().split(/\r?\n/)[0] || "";
 }
 
 function publicOrgs(orgs) {
@@ -439,7 +560,8 @@ function publicOrgRoles(org) {
       id: roleName,
       label: role.label ?? titleCase(roleName),
       provider: role.provider ?? "unknown",
-      responsibility: role.responsibility ?? ""
+      responsibility: role.responsibility ?? "",
+      fallbackProviderIds: publicFallbackProviderIds(role)
     };
   });
 }

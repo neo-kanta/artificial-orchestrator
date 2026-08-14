@@ -96,6 +96,8 @@ Before starting, check:
 - Project is selected.
 - Goal is specific.
 - Team is selected through providers, an organization preset, or custom agents.
+- Provider readiness is clear. The desktop app checks OpenAI key presence and Codex/Claude CLI availability without spending model calls.
+- Fallback-backed providers or organization roles can still start when the primary provider is unavailable and a configured fallback remains usable.
 - Rounds are reasonable for the size of the task.
 - Permissions match the risk.
 

@@ -1,9 +1,11 @@
 export {
   addGuiProject,
+  assertGuiRunReady,
   createGuiRunOptions,
   guiRunHistory,
   guiRunSnapshot,
   guiState,
+  providerReadiness,
   resolveGuiRunFile,
   startGuiRun,
   useGuiProject

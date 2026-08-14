@@ -36,7 +36,10 @@ export function renderProviderChoices(elements, providers, selectedProviderIds) 
 
   for (const provider of providers) {
     const label = document.createElement("label");
-    label.className = "provider-choice";
+    const readinessStatus = provider.readiness?.status ?? "unchecked";
+    label.className = `provider-choice provider-${readinessStatus}`;
+    label.dataset.readiness = readinessStatus;
+    if (provider.readiness?.message) label.title = provider.readiness.message;
 
     const input = document.createElement("input");
     input.type = "checkbox";

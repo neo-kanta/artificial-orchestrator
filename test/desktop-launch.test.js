@@ -152,6 +152,38 @@ test("desktop launch validation blocks providers with readiness blockers", () =>
 
   assert.equal(org.ok, false);
   assert.deepEqual(org.errors, ["OpenAI is not ready: Set OPENAI_API_KEY before starting OpenAI-backed providers."]);
+
+  const localAdvisor = {
+    id: "local-advisor",
+    label: "Local Advisor",
+    readiness: {
+      status: "unchecked",
+      label: "External command",
+      message: "Readiness is checked when the configured command starts."
+    }
+  };
+
+  const fallbackOrg = validateLaunch(
+    {
+      goal: "Run the advisor preset",
+      rounds: 1,
+      orgName: "advisor-council",
+      providerIds: []
+    },
+    {
+      project,
+      providers: [openai, localAdvisor],
+      orgs: [
+        {
+          id: "advisor-council",
+          label: "Advisor Council",
+          roles: [{ id: "advisor", provider: "openai", fallbackProviderIds: ["local-advisor"] }]
+        }
+      ]
+    }
+  );
+
+  assert.equal(fallbackOrg.ok, true);
 });
 
 test("desktop launch summary supports custom agent rosters", () => {
