@@ -425,6 +425,7 @@ export function renderRunVisualization(elements, run, runs = [], selectedRunId =
   renderMetricStrip(elements.runMetrics, analytics.metrics);
   renderPhaseMix(elements.phaseMixBar, elements.phaseMixLegend, analytics);
   renderTimeline(elements.runTimeline, analytics, selectedRunId, onSelectRun);
+  renderComparisonTable(elements.runComparison, analytics.comparisonRows, selectedRunId, onSelectRun);
 }
 
 export function runAnalytics(run, runs = []) {
@@ -468,6 +469,7 @@ export function runAnalytics(run, runs = []) {
     ],
     phaseCounts,
     total,
+    comparisonRows: recentRuns.map(comparisonRow),
     timeline: recentRuns
       .slice()
       .reverse()
@@ -1191,6 +1193,67 @@ function renderPhaseMix(bar, legend, analytics) {
   }
 }
 
+function renderComparisonTable(container, rows = [], selectedRunId, onSelectRun) {
+  container.replaceChildren();
+
+  const title = document.createElement("div");
+  title.className = "comparison-title";
+  title.textContent = rows.length ? "Recent run comparison" : "Comparison appears after sessions are saved";
+  container.append(title);
+
+  if (rows.length === 0) {
+    container.append(empty("No sessions to compare"));
+    return;
+  }
+
+  const table = document.createElement("div");
+  table.className = "comparison-table";
+  table.setAttribute("role", "table");
+  table.setAttribute("aria-label", "Recent run comparison");
+
+  const header = document.createElement("div");
+  header.className = "comparison-header";
+  header.setAttribute("role", "row");
+  for (const label of ["Run", "Phase", "Team", "Duration", "Blockers", "Usage"]) {
+    const cell = document.createElement("span");
+    cell.setAttribute("role", "columnheader");
+    cell.textContent = label;
+    header.append(cell);
+  }
+  table.append(header);
+
+  const body = document.createElement("div");
+  body.className = "comparison-body";
+  body.setAttribute("role", "rowgroup");
+  for (const row of rows) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `comparison-row ${phaseClass(row.phase)} ${row.id === selectedRunId ? "selected" : ""}`;
+    item.title = `${row.goal} | ${row.phaseLabel} | ${row.durationLabel} | ${row.usageLabel}`;
+    item.setAttribute("aria-label", `${row.goal}, ${row.phaseLabel}, ${row.team}, duration ${row.durationLabel}, ${row.blockerLabel}, ${row.usageLabel}`);
+    item.addEventListener("click", () => onSelectRun(row.run));
+
+    item.append(
+      comparisonCell(row.goal, "comparison-goal"),
+      comparisonCell(row.phaseLabel, "comparison-phase"),
+      comparisonCell(row.team),
+      comparisonCell(row.durationLabel),
+      comparisonCell(row.blockerLabel, row.blockerCount > 0 ? "comparison-blocked" : ""),
+      comparisonCell(row.usageLabel)
+    );
+    body.append(item);
+  }
+  table.append(body);
+  container.append(table);
+}
+
+function comparisonCell(text, className = "") {
+  const cell = document.createElement("span");
+  cell.className = ["comparison-cell", className].filter(Boolean).join(" ");
+  cell.textContent = text;
+  return cell;
+}
+
 function renderTimeline(container, analytics, selectedRunId, onSelectRun) {
   container.replaceChildren();
 
@@ -1230,6 +1293,100 @@ function renderTimeline(container, analytics, selectedRunId, onSelectRun) {
   }
 
   container.append(bars);
+}
+
+function comparisonRow(run) {
+  const phase = normalizePhase(run?.phase);
+  const providerIds = runProviderIds(run);
+  const durationMs = Number.isFinite(Number(run?.durationMs)) ? Number(run.durationMs) : runDurationMs(run);
+  const blockerCount = Array.isArray(run?.blockers) ? run.blockers.length : 0;
+  const usage = runUsageSummary(run);
+
+  return {
+    run,
+    id: runIdentity(run),
+    goal: compactHistoryGoal(run?.goal),
+    phase,
+    phaseLabel: PHASE_LABELS[phase],
+    team: runTeamLabel(run, providerIds),
+    durationMs,
+    durationLabel: formatDuration(durationMs),
+    blockerCount,
+    blockerLabel: blockerCount === 0 ? "none" : blockerCount === 1 ? "1 blocker" : `${blockerCount} blockers`,
+    usage,
+    usageLabel: formatUsageSummary(usage)
+  };
+}
+
+function runProviderIds(run) {
+  const explicit = Array.isArray(run?.providerIds) ? run.providerIds : [];
+  const providers = Array.isArray(run?.providers) ? run.providers.map((provider) => provider?.id) : [];
+  const finalProvider = run?.final?.provider ? [run.final.provider] : [];
+  return uniqueParts([...explicit, ...providers, ...finalProvider]);
+}
+
+function runTeamLabel(run, providerIds) {
+  if (run?.org?.label) return run.org.label;
+  if (run?.org?.id) return run.org.id;
+  if (providerIds.length > 0) return providerIds.join(" -> ");
+
+  const providerCount = Number(run?.providerCount);
+  if (Number.isFinite(providerCount) && providerCount > 0) return providerCount === 1 ? "1 provider" : `${providerCount} providers`;
+  return "Team not recorded";
+}
+
+function runUsageSummary(run) {
+  const summary = run?.usage ?? {};
+  const summaryTokens = Number(summary.totalTokens ?? summary.total_tokens ?? summary.total);
+  const summaryCost = Number(summary.costUsd ?? summary.cost_usd);
+  let totalTokens = Number.isFinite(summaryTokens) && summaryTokens > 0 ? summaryTokens : null;
+  let costUsd = Number.isFinite(summaryCost) && summaryCost > 0 ? summaryCost : null;
+
+  if (totalTokens === null || costUsd === null) {
+    let providerTokens = 0;
+    let hasProviderTokens = false;
+    let providerCost = 0;
+    let hasProviderCost = false;
+
+    for (const provider of run?.providers ?? []) {
+      const tokens = providerTokenTotal(provider);
+      if (tokens > 0) {
+        providerTokens += tokens;
+        hasProviderTokens = true;
+      }
+
+      const cost = Number(provider?.costUsd);
+      if (Number.isFinite(cost) && cost > 0) {
+        providerCost += cost;
+        hasProviderCost = true;
+      }
+    }
+
+    totalTokens ??= hasProviderTokens ? providerTokens : null;
+    costUsd ??= hasProviderCost ? providerCost : null;
+  }
+
+  return {
+    totalTokens,
+    costUsd
+  };
+}
+
+function formatUsageSummary(usage) {
+  return [
+    usage.totalTokens ? `${compactNumber(usage.totalTokens)} tokens` : null,
+    usage.costUsd ? formatCostUsd(usage.costUsd) : null
+  ]
+    .filter(Boolean)
+    .join(" | ") || "not reported";
+}
+
+function formatCostUsd(value) {
+  const cost = Number(value);
+  if (!Number.isFinite(cost) || cost <= 0) return "";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  if (cost < 1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
 }
 
 function uniqueRuns(run, runs) {

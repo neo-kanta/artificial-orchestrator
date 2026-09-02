@@ -48,6 +48,7 @@ The hierarchy page is the full operator view. It contains:
 - Permission controls.
 - Organization map.
 - Live monitor.
+- Run analytics with phase mix, duration timeline, and recent-run comparison.
 - Agent chat monitor.
 - Recovery Center.
 - Recent runs and durable file links.
@@ -182,6 +183,8 @@ Important files:
 - `provider-state.json`: latest per-provider state, limits, usage, and handoffs.
 - `org-state.json`: role statuses and blockers for organization runs.
 
+The hierarchy monitor also compares recent runs by phase, team, duration, blocker count, and reported usage or cost. The comparison uses sanitized data from `status.json` and `provider-state.json`; it does not load full transcripts or handoff text into history rows.
+
 The desktop app disables file buttons for expected files that have not been written yet, such as `events.ndjson` before the first provider turn. When the file exists, the UI shows its last modified time and size when available.
 
 Opening a file goes through the app service by workspace, session id, and known durable file key. Missing files, symlinks, non-files, and out-of-workspace session targets are blocked instead of opened.
@@ -220,4 +223,4 @@ The current desktop app is functional, but these are high-value areas to improve
 - Safer file actions: show file existence and last modified time before opening.
 - Streaming: move from polling durable files toward event-based updates where possible.
 - Accessibility: improve keyboard navigation, focus order, labels, and contrast testing.
-- Run comparison: compare recent runs by phase, provider, duration, blockers, and cost/usage when available.
+- Run comparison: add filters or exports for longer-term comparisons across more than the recent sessions shown in the monitor.

@@ -138,6 +138,9 @@ function publicRunHistoryEntry(run) {
   const final = run.status?.final ?? run.providerState?.final ?? null;
   const org = publicOrgState(run.orgState);
   const providers = publicProviderState(run.status, run.providerState);
+  const startedAt = run.status?.startedAt ?? run.providerState?.startedAt ?? null;
+  const updatedAt = run.status?.updatedAt ?? run.providerState?.updatedAt ?? null;
+  const completedAt = run.status?.completedAt ?? run.providerState?.completedAt ?? null;
 
   return {
     id: runId(run),
@@ -152,9 +155,9 @@ function publicRunHistoryEntry(run) {
           phase: org.phase
         }
       : null,
-    startedAt: run.status?.startedAt ?? run.providerState?.startedAt ?? null,
-    updatedAt: run.status?.updatedAt ?? run.providerState?.updatedAt ?? null,
-    completedAt: run.status?.completedAt ?? run.providerState?.completedAt ?? null,
+    startedAt,
+    updatedAt,
+    completedAt,
     final: final
       ? {
           status: final.status ?? null,
@@ -166,9 +169,55 @@ function publicRunHistoryEntry(run) {
       : null,
     blockers: collectBlockers(run.status, final),
     providerCount: providers.length,
+    providerIds: providers.map((provider) => provider.id),
+    durationMs: runDurationMs({ startedAt, updatedAt, completedAt }),
+    usage: runUsageSummary(providers),
     files: run.files,
     fileDetails: publicFileDetailStubs(run.files)
   };
+}
+
+function runDurationMs(run) {
+  const start = Date.parse(run?.startedAt ?? "");
+  const end = Date.parse(run?.completedAt ?? run?.updatedAt ?? "");
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return end - start;
+}
+
+function runUsageSummary(providers = []) {
+  let totalTokens = 0;
+  let hasTokens = false;
+  let costUsd = 0;
+  let hasCost = false;
+
+  for (const provider of providers) {
+    const tokens = providerTokenTotal(provider?.usage);
+    if (tokens > 0) {
+      totalTokens += tokens;
+      hasTokens = true;
+    }
+
+    const cost = Number(provider?.costUsd);
+    if (Number.isFinite(cost) && cost > 0) {
+      costUsd += cost;
+      hasCost = true;
+    }
+  }
+
+  return {
+    totalTokens: hasTokens ? totalTokens : null,
+    costUsd: hasCost ? Number(costUsd.toFixed(6)) : null
+  };
+}
+
+function providerTokenTotal(usage = {}) {
+  const reportedTotal = Number(usage?.total_tokens ?? usage?.total);
+  if (Number.isFinite(reportedTotal) && reportedTotal > 0) return reportedTotal;
+
+  return [usage?.input_tokens, usage?.output_tokens, usage?.input, usage?.output, usage?.prompt_tokens, usage?.completion_tokens]
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .reduce((sum, value) => sum + value, 0);
 }
 
 async function publicFileDetails(files = {}, sessionId = null) {
