@@ -359,9 +359,9 @@ test("gui state exposes recent runs and can load a selected session", async (t) 
     ok: false,
     text: "second private transcript detail\n\nHandoff: second private handoff detail",
     structured: null,
-    usage: null,
-    usageLine: "usage unavailable",
-    costUsd: null,
+    usage: { input_tokens: 7, output_tokens: 3 },
+    usageLine: "tokens: in 7, out 3",
+    costUsd: 0.002,
     limit: null,
     errors: [],
     stderr: "",
@@ -380,6 +380,11 @@ test("gui state exposes recent runs and can load a selected session", async (t) 
   assert.equal(history[0].goal, "inspect latest blocker");
   assert.equal(history[0].phase, "blocked");
   assert.deepEqual(history[0].blockers, ["needs token"]);
+  assert.deepEqual(history[0].providerIds, ["claude"]);
+  assert.equal(history[0].providerCount, 1);
+  assert.equal(history[0].usage.totalTokens, 10);
+  assert.equal(history[0].usage.costUsd, 0.002);
+  assert.equal(typeof history[0].durationMs, "number");
   assert.equal(history[1].goal, "review prior run");
   assert.equal(history[1].phase, "done");
   assert.equal(Object.hasOwn(history[0], "transcript"), false);
@@ -532,6 +537,14 @@ test("run analytics summarizes recent outcomes and current provider usage", () =
   assert.equal(analytics.metrics[2].value, "2");
   assert.equal(analytics.metrics[3].label, "Current tokens");
   assert.equal(analytics.metrics[3].value, "1.5k");
+  assert.deepEqual(
+    analytics.comparisonRows.map((run) => [run.id, run.phaseLabel, run.team, run.durationLabel, run.blockerLabel, run.usageLabel]),
+    [
+      ["run-3", "Blocked", "codex", "7m", "1 blocker", "1.5k tokens"],
+      ["run-2", "Done", "Team not recorded", "3m", "none", "not reported"],
+      ["run-1", "Rounds exhausted", "Team not recorded", "10m", "1 blocker", "not reported"]
+    ]
+  );
   assert.deepEqual(
     analytics.timeline.map((run) => run.id),
     ["run-1", "run-2", "run-3"]

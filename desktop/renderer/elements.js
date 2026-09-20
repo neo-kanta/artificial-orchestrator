@@ -58,6 +58,7 @@ export const elements = {
   phaseMixBar: document.querySelector("#phase-mix-bar"),
   phaseMixLegend: document.querySelector("#phase-mix-legend"),
   runTimeline: document.querySelector("#run-timeline"),
+  runComparison: document.querySelector("#run-comparison"),
   agentChatTitle: document.querySelector("#agent-chat-title"),
   agentChatMeta: document.querySelector("#agent-chat-meta"),
   agentChatList: document.querySelector("#agent-chat-list"),
