@@ -33,6 +33,7 @@ export function renderSessionView(elements, context, handlers = {}) {
   renderThread(elements, selectedRun, draftMode, onOpenPath);
   renderComposer(elements, { activeProject, processState, launchInput, notice });
 
+  elements.chatThread.setAttribute("aria-busy", processState.activeRun ? "true" : "false");
   elements.sessionCount.textContent = String(runHistory.length);
   elements.chatSessionTitle.textContent = draftMode || !selectedRun ? "New session" : sessionTitle(selectedRun);
   elements.chatStatusLeft.textContent = statusLeft(selectedRun, processState);
@@ -68,7 +69,7 @@ export function sessionRunOverview(run) {
   const blockers = Array.isArray(run?.blockers) ? run.blockers.map((blocker) => compactLine(blocker, 120)).filter(Boolean) : [];
   const files = sessionFileActions(run?.fileDetails ?? run?.files);
   const availableFiles = files.filter((file) => file.available).length;
-  return {
+  const overview = {
     phase,
     phaseClass: `phase-${String(run?.phase ?? "idle").replace(/_/g, "-")}`,
     project: run?.project?.name ?? "No project recorded",
@@ -78,6 +79,10 @@ export function sessionRunOverview(run) {
     latestHandoff: compactLine(run?.latestHandoff || run?.handoff || "", 260),
     files,
     fileSummary: files.length ? `${availableFiles} of ${files.length} available` : "No durable files"
+  };
+  return {
+    ...overview,
+    statusSummary: sessionOverviewSummary(overview)
   };
 }
 
@@ -123,22 +128,40 @@ export function sessionFileActions(source = {}) {
     }));
 }
 
+export function sessionAccessibilityLabel(run, selected = false) {
+  const prefix = selected ? "Selected session" : "Session";
+  return [prefix, sessionTitle(run), sessionMeta(run), blockerCountLabel(run?.blockers)].filter(Boolean).join(". ");
+}
+
+export function sessionFileAccessibilityLabel(file) {
+  const label = file?.label ?? titleCase(file?.key ?? "Run file");
+  if (file?.available === false) {
+    return `${label} unavailable. ${file.unavailableReason ?? file.error ?? "File is not available."}`;
+  }
+  return `Open ${label}. ${file?.detail ?? pathLeaf(file?.path)}`;
+}
+
 function renderSessionList(elements, runs, selectedRunId, onSelectRun) {
   elements.sessionList.replaceChildren();
 
   if (runs.length === 0) {
-    elements.sessionList.append(emptyNote("No sessions found"));
+    elements.sessionList.append(emptyNote("No sessions found. Start a new session or clear the search."));
     return;
   }
 
   for (const run of runs) {
+    const selected = run.id === selectedRunId;
     const row = document.createElement("button");
     row.type = "button";
-    row.className = `session-row ${run.id === selectedRunId ? "selected" : ""}`;
+    row.className = `session-row ${selected ? "selected" : ""}`;
+    row.setAttribute("aria-pressed", selected ? "true" : "false");
+    row.setAttribute("aria-label", sessionAccessibilityLabel(run, selected));
+    if (selected) row.setAttribute("aria-current", "true");
     row.addEventListener("click", () => onSelectRun(run));
 
     const marker = document.createElement("span");
     marker.className = "session-dot";
+    marker.setAttribute("aria-hidden", "true");
 
     const body = document.createElement("span");
     body.className = "session-row-body";
@@ -178,7 +201,7 @@ function renderThread(elements, run, draftMode, onOpenPath) {
 function sessionOverviewNode(overview, onOpenPath) {
   const panel = document.createElement("section");
   panel.className = `session-run-overview ${overview.phaseClass}`;
-  panel.setAttribute("aria-label", "Run status summary");
+  panel.setAttribute("aria-label", overview.statusSummary);
 
   const head = document.createElement("div");
   head.className = "session-overview-head";
@@ -227,11 +250,13 @@ function sessionOverviewNode(overview, onOpenPath) {
   if (overview.files.length > 0) {
     const fileBar = document.createElement("div");
     fileBar.className = "session-file-actions";
+    fileBar.setAttribute("aria-label", "Durable run files");
     for (const file of overview.files) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = `session-file-button ${file.available ? "" : "missing"}`;
       button.disabled = !file.available;
+      button.setAttribute("aria-label", sessionFileAccessibilityLabel(file));
       button.title = file.available ? file.path : `${file.path} - ${file.error ?? "Unavailable"}`;
       const label = document.createElement("span");
       label.textContent = file.label;
@@ -268,6 +293,7 @@ function renderComposer(elements, { activeProject, processState, launchInput, no
   const activeRun = Boolean(processState.activeRun);
   elements.chatSendButton.disabled = !activeProject || activeRun || !hasGoal;
   elements.chatSendButton.textContent = activeRun ? "Active" : "Start";
+  elements.chatSendButton.setAttribute("aria-label", chatSendLabel({ activeProject, activeRun, hasGoal }));
   elements.chatComposerMeta.textContent = composerMeta(launchInput);
 
   if (notice?.message) {
@@ -339,6 +365,24 @@ function sessionMeta(run) {
     .join(" | ");
 }
 
+function sessionOverviewSummary(overview) {
+  return [
+    `Run status ${overview.phase}`,
+    `Project ${overview.project}`,
+    overview.team,
+    blockerCountLabel(overview.blockers),
+    overview.fileSummary
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
+function blockerCountLabel(blockers) {
+  const count = Array.isArray(blockers) ? blockers.filter(Boolean).length : 0;
+  if (count === 0) return "";
+  return count === 1 ? "1 blocker" : `${count} blockers`;
+}
+
 function sessionTeamLabel(run) {
   if (run?.org?.label) return `Organization - ${run.org.label}`;
   if (run?.org?.id) return `Organization - ${run.org.id}`;
@@ -355,6 +399,13 @@ function composerMeta(input = {}) {
   const providers = Array.isArray(input.providerIds) ? input.providerIds.length : 0;
   const providerText = providers === 1 ? "1 provider" : `${providers} providers`;
   return `${providerText} - ${roundText}`;
+}
+
+function chatSendLabel({ activeProject, activeRun, hasGoal }) {
+  if (activeRun) return "Run active";
+  if (!activeProject) return "Select a project before starting a run";
+  if (!hasGoal) return "Enter a goal before starting a run";
+  return "Start run";
 }
 
 function compactLine(value, maxLength) {
