@@ -38,7 +38,7 @@
 
         <label class="session-search">
           <span class="nav-icon">?</span>
-          <input id="session-search-input" type="search" autocomplete="off" placeholder="Search sessions..." />
+          <input id="session-search-input" type="search" autocomplete="off" placeholder="Search sessions..." aria-label="Search sessions" />
         </label>
 
         <section class="session-group" aria-label="Pinned sessions">
@@ -52,7 +52,7 @@
             <small id="session-count">0</small>
             <button id="session-refresh-button" class="mini-icon-button" type="button" aria-label="Refresh sessions">refresh</button>
           </div>
-          <div id="session-list" class="session-list"></div>
+          <div id="session-list" class="session-list" aria-label="Recent session list"></div>
         </section>
 
         <div class="session-rail-bottom">
@@ -76,15 +76,15 @@
           </div>
         </header>
 
-        <section id="chat-thread" class="chat-thread" aria-live="polite"></section>
+        <section id="chat-thread" class="chat-thread" aria-live="polite" aria-busy="false"></section>
 
         <form id="chat-form" class="chat-composer">
           <button id="chat-add-button" class="composer-plus" type="button" data-view-mode="hierarchy" aria-label="Add context">+</button>
-          <textarea id="chat-goal-input" rows="1" placeholder="What's on your mind?"></textarea>
+          <textarea id="chat-goal-input" rows="1" placeholder="What's on your mind?" aria-label="Run goal" aria-describedby="chat-composer-meta chat-notice"></textarea>
           <span id="chat-composer-meta" class="chat-composer-meta">Provider pipeline</span>
           <button id="chat-send-button" class="chat-send-button" type="submit" aria-label="Start run">Start</button>
         </form>
-        <p id="chat-notice" class="chat-notice"></p>
+        <p id="chat-notice" class="chat-notice" role="status" aria-live="polite"></p>
 
         <footer class="chat-statusbar">
           <span id="chat-status-left">Gateway ready</span>

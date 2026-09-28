@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterSessions, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
+import {
+  filterSessions,
+  sessionAccessibilityLabel,
+  sessionFileAccessibilityLabel,
+  sessionFileActions,
+  sessionRunOverview,
+  sessionTitle
+} from "../desktop/renderer/chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
@@ -286,6 +293,7 @@ test("desktop session overview summarizes run state and durable files", () => {
 
   assert.equal(overview.phase, "rounds exhausted");
   assert.equal(overview.phaseClass, "phase-rounds-exhausted");
+  assert.equal(overview.statusSummary, "Run status rounds exhausted. Project desktop. Organization - Software Team. 1 blocker. 3 of 3 available");
   assert.equal(overview.project, "desktop");
   assert.equal(overview.projectPath, "C:\\work\\desktop");
   assert.equal(overview.team, "Organization - Software Team");
@@ -310,6 +318,42 @@ test("desktop session overview summarizes run state and durable files", () => {
       ["handoff", "handoff.md"],
       ["events", "events.ndjson"]
     ]
+  );
+});
+
+test("desktop session accessibility labels summarize selected runs and files", () => {
+  const run = {
+    id: "run-1",
+    goal: "Fix desktop labels",
+    phase: "blocked",
+    project: { name: "desktop" },
+    startedAt: "2026-06-18T10:00:00.000Z",
+    blockers: ["missing provider token", "review needed"]
+  };
+
+  assert.match(sessionAccessibilityLabel(run, true), /^Selected session\. Fix desktop labels\./);
+  assert.match(sessionAccessibilityLabel(run, true), /blocked \| desktop \|/);
+  assert.match(sessionAccessibilityLabel(run, true), /2 blockers$/);
+
+  assert.equal(
+    sessionFileAccessibilityLabel({
+      key: "transcript",
+      label: "Transcript",
+      path: "C:\\work\\desktop\\.duet\\sessions\\20260630\\transcript.md",
+      detail: "Jun 30, 12:00 PM | 1.5 KB",
+      available: true
+    }),
+    "Open Transcript. Jun 30, 12:00 PM | 1.5 KB"
+  );
+
+  assert.equal(
+    sessionFileAccessibilityLabel({
+      key: "events",
+      label: "Events",
+      available: false,
+      error: "File has not been written yet."
+    }),
+    "Events unavailable. File has not been written yet."
   );
 });
 

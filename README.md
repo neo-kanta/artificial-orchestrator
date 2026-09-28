@@ -67,6 +67,7 @@ From the desktop app you can:
 - See active run and last run failure banners without opening terminal output.
 - Watch the latest transcript and phase updates while the run is active.
 - Review phase, project/org context, blockers, latest handoff, and durable file buttons directly in the session page.
+- Use accessible session and run-file labels that announce selected state, blockers, and file availability.
 - Use the Recovery Center to see blocked, running, done, or round-limited run guidance with prioritized next actions.
 - Browse recent durable runs for the selected project and reload an older run's transcript/status from its session files.
 - See whether durable files are available yet, including last modified time and size when known.
