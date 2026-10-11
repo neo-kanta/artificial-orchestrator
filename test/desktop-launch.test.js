@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { filterSessions, sessionFileActions, sessionRunOverview, sessionTitle } from "../desktop/renderer/chat-view.js";
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "../desktop/renderer/launch-state.js";
+import { isLikelyAbsolutePath, projectFormState } from "../desktop/renderer/project-form-state.js";
 import { projectNameFromPath } from "../desktop/renderer/project-name.js";
 
 const project = {
@@ -237,6 +238,29 @@ test("desktop project browser infers a project name from the selected path", () 
   assert.equal(projectNameFromPath("C:\\Users\\kanta\\source\\repos\\ims-th-solution\\"), "ims-th-solution");
   assert.equal(projectNameFromPath("/home/kanta/work/demo"), "demo");
   assert.equal(projectNameFromPath(""), "");
+});
+
+test("desktop project form readiness catches missing, relative, and duplicate projects", () => {
+  const projects = [
+    {
+      name: "desktop",
+      path: "C:\\Users\\kanta\\source\\repos\\artificial-orchestrator"
+    }
+  ];
+
+  assert.deepEqual(projectFormState({ name: "", path: "" }, projects).errors, ["Enter a project name.", "Choose a project folder."]);
+  assert.match(projectFormState({ name: "bad name", path: "C:\\work\\demo" }, projects).message, /Project names/);
+  assert.match(projectFormState({ name: "demo", path: "relative\\demo" }, projects).message, /absolute project path/);
+  assert.match(projectFormState({ name: "Desktop", path: "C:\\work\\demo" }, projects).message, /already exists/);
+  assert.match(projectFormState({ name: "other", path: "C:/Users/kanta/source/repos/artificial-orchestrator/" }, projects).message, /already registered/);
+
+  const ready = projectFormState({ name: "new-project", path: "C:\\work\\new-project" }, projects);
+  assert.equal(ready.ok, true);
+  assert.equal(ready.status, "ready");
+  assert.match(ready.message, /verify the folder exists/);
+  assert.equal(isLikelyAbsolutePath("\\\\server\\share\\repo"), true);
+  assert.equal(isLikelyAbsolutePath("/home/kanta/work/demo"), true);
+  assert.equal(isLikelyAbsolutePath("demo"), false);
 });
 
 test("desktop session view filters history and compacts titles", () => {

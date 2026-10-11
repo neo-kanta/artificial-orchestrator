@@ -53,6 +53,7 @@ From the desktop app you can:
 
 - See the active project and workspace path.
 - Add, list, and switch projects.
+- Catch missing, relative, or duplicate project names and paths before saving a project.
 - Browse to a workspace and auto-fill a project name from the folder.
 - Enter a goal, choose a provider pipeline or organization preset, and set rounds.
 - See a live run summary and readiness check before the Start button is enabled.

@@ -22,6 +22,8 @@ export const elements = {
   projectForm: document.querySelector("#project-form"),
   projectName: document.querySelector("#project-name"),
   projectPath: document.querySelector("#project-path"),
+  projectFormStatus: document.querySelector("#project-form-status"),
+  projectSubmitButton: document.querySelector("#project-submit-button"),
   browseButton: document.querySelector("#browse-button"),
   refreshButton: document.querySelector("#refresh-button"),
   workspaceTitle: document.querySelector("#workspace-title"),

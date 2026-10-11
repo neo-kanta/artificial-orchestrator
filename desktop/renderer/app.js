@@ -1,5 +1,6 @@
 import { elements } from "./elements.js";
 import { renderSessionView, resizeComposer, setActiveView } from "./chat-view.js";
+import { projectFormState } from "./project-form-state.js";
 import { projectNameFromPath } from "./project-name.js";
 import {
   checkedProviderIds,
@@ -11,6 +12,7 @@ import {
   renderLaunchReadiness,
   renderOrgMap,
   renderOrgChoices,
+  renderProjectFormReadiness,
   renderProjects,
   renderProviderChoices,
   renderProviderDisabledState,
@@ -59,6 +61,8 @@ function bindEvents() {
   elements.refreshButton.addEventListener("click", () => refreshState());
   elements.sessionRefreshButton.addEventListener("click", () => refreshState());
   elements.browseButton.addEventListener("click", chooseProjectPath);
+  elements.projectName.addEventListener("input", renderCurrentProjectFormReadiness);
+  elements.projectPath.addEventListener("input", renderCurrentProjectFormReadiness);
   elements.projectForm.addEventListener("submit", addProject);
   for (const button of elements.newSessionButtons) {
     button.addEventListener("click", startDraftSession);
@@ -124,6 +128,7 @@ async function refreshState() {
   selectedProjectName ??= currentState.activeProject?.name ?? currentState.projects[0]?.name ?? null;
 
   renderProjects(elements, currentState.projects, selectedProjectName, selectProject);
+  renderCurrentProjectFormReadiness();
   renderLauncher(elements, activeProject());
   renderProviderChoices(elements, currentState.providers, checkedProviderIds(elements));
   renderOrgChoices(elements, currentState.orgs);
@@ -198,11 +203,14 @@ async function chooseProjectPath() {
   if (!path) return;
   elements.projectPath.value = path;
   if (!elements.projectName.value.trim()) elements.projectName.value = projectNameFromPath(path);
+  renderCurrentProjectFormReadiness();
 }
 
 async function addProject(event) {
   event.preventDefault();
   try {
+    const readiness = renderCurrentProjectFormReadiness();
+    if (!readiness.ok) return;
     const name = elements.projectName.value.trim();
     const path = elements.projectPath.value.trim();
     const result = await api.addProject({ name, path, setActive: true });
@@ -212,9 +220,12 @@ async function addProject(event) {
     draftSession = false;
     chatNotice = null;
     clearProjectForm(elements);
+    renderCurrentProjectFormReadiness();
     await refreshState();
   } catch (error) {
-    setMessage(elements, error.message, true);
+    const message = error?.message ?? String(error);
+    renderProjectFormReadiness(elements, { ok: false, message });
+    setMessage(elements, "", false);
   }
 }
 
@@ -564,6 +575,18 @@ function renderLaunchState() {
     },
     currentProcessState
   );
+}
+
+function renderCurrentProjectFormReadiness() {
+  const state = projectFormState(
+    {
+      name: elements.projectName.value,
+      path: elements.projectPath.value
+    },
+    currentState?.projects ?? []
+  );
+  renderProjectFormReadiness(elements, state);
+  return state;
 }
 
 function storedViewMode() {
