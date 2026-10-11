@@ -62,8 +62,9 @@ In the desktop app:
 
 1. Open the Hierarchy page.
 2. Add a project name and path, or use Browse.
-3. Select the project in the project list.
-4. Confirm the active project label shows the expected name and path.
+3. Confirm the project form says it is ready. The form catches missing values, relative paths, duplicate names, and duplicate folders before saving.
+4. Select the project in the project list.
+5. Confirm the active project label shows the expected name and path.
 
 The app fails early if the workspace path does not exist. It does not create a new empty folder from a mistyped path.
 
@@ -214,7 +215,7 @@ The current desktop app is functional, but these are high-value areas to improve
 
 - Packaging: add a repeatable Windows installer or portable build.
 - Visual verification: add Playwright or Electron screenshot checks for core desktop flows.
-- First-run onboarding: detect missing projects/providers and show a guided setup path.
+- First-run onboarding: expand the guided setup path beyond project-form readiness.
 - Provider health: make auth, quota, and tool readiness visible before launch.
 - Resume flow: turn `rounds_exhausted` and blocked handoffs into an explicit resume action.
 - Safer file actions: show file existence and last modified time before opening.

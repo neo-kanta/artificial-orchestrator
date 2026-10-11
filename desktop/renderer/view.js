@@ -509,6 +509,12 @@ export function clearProjectForm(elements) {
   elements.projectPath.value = "";
 }
 
+export function renderProjectFormReadiness(elements, state) {
+  elements.projectSubmitButton.disabled = !state.ok;
+  elements.projectFormStatus.textContent = state.message;
+  elements.projectFormStatus.className = `project-form-status ${state.ok ? "ready" : "error"}`;
+}
+
 export function setMessage(elements, message, isError = false) {
   elements.validationMessage.textContent = message;
   elements.validationMessage.className = `validation-message ${isError ? "error" : ""}`;
