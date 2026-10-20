@@ -109,6 +109,8 @@ A provider pipeline runs selected providers in order, for example:
 claude -> codex
 ```
 
+The launcher records providers in the order you select them and labels them `Step 1`, `Step 2`, and so on. Select them in the handoff order you intend; unchecking a provider removes it without changing the order of the remaining steps.
+
 This is best for simple handoffs where one agent reviews or plans and another implements.
 
 ### Organization Preset

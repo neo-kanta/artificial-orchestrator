@@ -1,4 +1,5 @@
 import { launchActionLabel, launchSteps, launchSummary, selectedProviderNotice, validateLaunch } from "./launch-state.js";
+import { providerDisplayOrder } from "./provider-order.js";
 
 export function renderProjects(elements, projects, selectedProjectName, onSelectProject) {
   const project = selectProject(projects, selectedProjectName);
@@ -34,7 +35,7 @@ export function renderLauncher(elements, project) {
 export function renderProviderChoices(elements, providers, selectedProviderIds) {
   elements.providerList.replaceChildren();
 
-  for (const provider of providers) {
+  for (const provider of providerDisplayOrder(providers, selectedProviderIds)) {
     const label = document.createElement("label");
     label.className = "provider-choice";
 
@@ -48,7 +49,7 @@ export function renderProviderChoices(elements, providers, selectedProviderIds) 
     const text = document.createElement("span");
     text.textContent = provider.label;
     const meta = document.createElement("small");
-    meta.textContent = providerMeta(provider);
+    meta.textContent = provider.pipelineStep ? `Step ${provider.pipelineStep}: ${providerMeta(provider)}` : providerMeta(provider);
     copy.append(text, meta);
 
     label.append(input, copy);
