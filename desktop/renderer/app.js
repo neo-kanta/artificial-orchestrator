@@ -1,6 +1,7 @@
 import { elements } from "./elements.js";
 import { renderSessionView, resizeComposer, setActiveView } from "./chat-view.js";
 import { projectNameFromPath } from "./project-name.js";
+import { orderedProviderIds, updateProviderOrder } from "./provider-order.js";
 import {
   checkedProviderIds,
   clearProjectForm,
@@ -36,6 +37,7 @@ let activeViewMode = storedViewMode();
 let sessionSearchQuery = "";
 let draftSession = false;
 let chatNotice = null;
+let providerOrder = ["claude", "codex"];
 
 bindEvents();
 setViewMode(activeViewMode, false);
@@ -81,7 +83,12 @@ function bindEvents() {
     renderCurrentOrgMap();
     renderCurrentSessionView();
   });
-  elements.providerList.addEventListener("change", () => {
+  elements.providerList.addEventListener("change", (event) => {
+    const input = event.target;
+    if (input instanceof HTMLInputElement && input.type === "checkbox") {
+      providerOrder = updateProviderOrder(providerOrder, input.value, input.checked, currentState?.providers?.map((provider) => provider.id) ?? []);
+      renderProviderChoices(elements, currentState?.providers ?? [], providerOrder);
+    }
     if (!elements.orgSelect.value) seedAgentRolesFromSelection(true);
     renderCurrentOrgMap();
     renderLaunchState();
@@ -125,7 +132,8 @@ async function refreshState() {
 
   renderProjects(elements, currentState.projects, selectedProjectName, selectProject);
   renderLauncher(elements, activeProject());
-  renderProviderChoices(elements, currentState.providers, checkedProviderIds(elements));
+  providerOrder = orderedProviderIds(providerOrder.length ? providerOrder : checkedProviderIds(elements), currentState.providers.map((provider) => provider.id));
+  renderProviderChoices(elements, currentState.providers, providerOrder);
   renderOrgChoices(elements, currentState.orgs);
   if (!elements.orgSelect.value && currentState.run?.org?.id && currentState.orgs.some((org) => org.id === currentState.run.org.id)) {
     elements.orgSelect.value = currentState.run.org.id;
